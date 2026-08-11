@@ -223,7 +223,7 @@ export default function Notes() {
     try {
       setSummary('Extracting text from PDF...');
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      const pdf = await pdfjsLib.getDocument(arrayBuffer as any).promise;
       let extractedText = `\n\n--- Imported from ${file.name} ---\n\n`;
       
       for (let i = 1; i <= pdf.numPages; i++) {

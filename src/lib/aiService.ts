@@ -1,5 +1,5 @@
 export type ProviderInfo = {
-  provider: 'groq' | 'openrouter';
+  provider: 'groq' | 'openrouter' | 'nvidia';
   apiKey?: string;
   model?: string;
 };

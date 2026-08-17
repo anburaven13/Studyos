@@ -101,7 +101,9 @@ export const initializeDb = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
     
+  await sql`
     CREATE TABLE IF NOT EXISTS study_sessions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id),
@@ -109,7 +111,9 @@ export const initializeDb = async () => {
       date VARCHAR(255) NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
 
+  await sql`
     -- Try to alter notes table if the columns don't exist yet (for existing dbs)
     DO $$
     BEGIN

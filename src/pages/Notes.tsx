@@ -85,8 +85,8 @@ export default function Notes() {
   // Autosave to API
   useEffect(() => {
     if (!activeNote || !activeNote.id) return;
-    // Skip autosave for the initial placeholder note
-    if (activeNote.id.toString() === 'new' && activeNote.title === '') return;
+    // Skip autosave for placeholder notes
+    if (activeNote.id.toString() === 'new' || activeNote.id.toString() === 'temp') return;
     // Skip autosave immediately after creating a new note
     if (skipAutosaveRef.current) {
       skipAutosaveRef.current = false;

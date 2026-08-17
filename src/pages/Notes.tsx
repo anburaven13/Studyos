@@ -31,7 +31,8 @@ export default function Notes() {
   const { user } = useAuth();
   const userContext = user?.class_level && user?.board ? `${user.class_level} - ${user.board}` : undefined;
 
-  const activeNote = notesList.find(n => n.id === activeNoteId) || notesList[0];
+  const activeNote = notesList.find(n => n.id.toString() === activeNoteId.toString()) || notesList[0];
+  const skipAutosaveRef = React.useRef(false);
 
   // Fetch notes on mount
   useEffect(() => {
@@ -58,7 +59,14 @@ export default function Notes() {
 
   // Autosave to API
   useEffect(() => {
-    if (!activeNote || !activeNote.id || activeNote.id === '1' && activeNote.title === '') return;
+    if (!activeNote || !activeNote.id) return;
+    // Skip autosave for the initial placeholder note
+    if (activeNote.id.toString() === '1' && activeNote.title === '') return;
+    // Skip autosave immediately after creating a new note
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
     
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -75,7 +83,7 @@ export default function Notes() {
           body: JSON.stringify({ title: activeNote.title, content: activeNote.content, folder: activeNote.folder || 'General', tags: activeNote.tags })
         });
         if (res.ok) setSaveStatus('Saved');
-        else setSaveStatus('Saved'); // Fallback for UI
+        else setSaveStatus('Saved');
       } catch (e) {
         setSaveStatus('Saved');
       }
@@ -101,7 +109,12 @@ export default function Notes() {
       });
       if (res.ok) {
         const newNote = await res.json();
-        setNotesList(prev => [newNote, ...prev]);
+        skipAutosaveRef.current = true;
+        setNotesList(prev => {
+          // Remove initial placeholder if present
+          const cleaned = prev.filter(n => n.id.toString() !== '1' && n.id.toString() !== 'temp');
+          return [newNote, ...cleaned];
+        });
         setActiveNoteId(newNote.id.toString());
         setIsEditing(true);
         setSummary('');

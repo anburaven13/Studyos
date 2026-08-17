@@ -456,7 +456,7 @@ app.post('/api/ai/chat', authenticateToken, async (req: any, res: any) => {
         { role: 'system', content: fullSystemPrompt },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.5,
       max_tokens: 1024,
     });
@@ -481,7 +481,7 @@ app.post('/api/ai/flashcards', authenticateToken, async (req: any, res: any) => 
         { role: 'system', content: fullSystemPrompt },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.3,
     });
 
@@ -507,7 +507,7 @@ app.post('/api/ai/quiz', authenticateToken, async (req: any, res: any) => {
         { role: 'system', content: fullSystemPrompt },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.3,
     });
 
@@ -564,7 +564,7 @@ RULES:
         { role: 'system', content: systemPrompt },
         { role: 'user', content: rawData }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.1,
       max_tokens: 4096,
     });
@@ -633,7 +633,7 @@ ${content}`;
         { role: 'system', content: 'You are a Cognitive Compiler. Extract genetic knowledge concepts purely as JSON.' },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.1,
     });
 

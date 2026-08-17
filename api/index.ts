@@ -520,6 +520,83 @@ app.post('/api/ai/quiz', authenticateToken, async (req: any, res: any) => {
   }
 });
 
+app.post('/api/ai/extract-routine', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { rawData } = req.body;
+    if (!rawData || typeof rawData !== 'string' || rawData.trim().length === 0) {
+      return res.status(400).json({ error: 'No data provided to extract from.' });
+    }
+
+    const systemPrompt = `You are a schedule extraction engine. The user will paste raw data in any format — it could be:
+- A JSON object or array (possibly from a database query)
+- A SQL query result or INSERT statements
+- A CSV or table
+- A plain text description like "I wake up at 7am, go to school at 8, study from 3-5pm..."
+- Or any other format
+
+Your job: Extract a weekly routine schedule from this data and return it as a strict JSON object.
+
+OUTPUT FORMAT (return ONLY this JSON, no markdown, no explanation):
+{
+  "Monday": [
+    { "id": "mon-1", "title": "Activity Name", "start": "HH:MM", "end": "HH:MM", "type": "study" }
+  ],
+  "Tuesday": [...],
+  "Wednesday": [...],
+  "Thursday": [...],
+  "Friday": [...],
+  "Saturday": [...],
+  "Sunday": [...]
+}
+
+RULES:
+- "type" must be one of: "school", "study", "class", "break", "sleep"
+- "start" and "end" must be in 24-hour HH:MM format
+- "id" should be a unique string per block (e.g. "mon-1", "tue-2")
+- Sort blocks by start time within each day
+- If data only describes some days, leave other days as empty arrays []
+- If the data describes a single day's pattern, replicate it across all weekdays unless context says otherwise
+- If the input is already valid routine JSON, clean it up and return it in the correct format
+- NEVER include any text outside the JSON object. Return ONLY the raw JSON.`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: rawData }
+      ],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.1,
+      max_tokens: 4096,
+    });
+
+    const resultText = completion.choices[0]?.message?.content || '{}';
+    // Clean potential markdown fencing
+    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
+    const parsed = JSON.parse(jsonStr);
+
+    // Validate structure: must have at least one day key
+    const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const hasDays = validDays.some(day => Array.isArray(parsed[day]));
+    if (!hasDays) {
+      return res.status(422).json({ error: 'AI could not extract a valid routine from the provided data. Try providing more structured input.' });
+    }
+
+    // Ensure all days exist
+    const schedule: Record<string, any[]> = {};
+    for (const day of validDays) {
+      schedule[day] = Array.isArray(parsed[day]) ? parsed[day] : [];
+    }
+
+    res.json({ schedule });
+  } catch (error: any) {
+    console.error("AI Routine Extraction Error:", error);
+    if (error instanceof SyntaxError) {
+      return res.status(422).json({ error: 'AI returned an invalid response. Please try again with clearer data.' });
+    }
+    res.status(500).json({ error: `Failed to extract routine: ${error.message}` });
+  }
+});
+
 // --- Knowledge DNA Routes ---
 app.get('/api/dna', authenticateToken, async (req: any, res: any) => {
   try {

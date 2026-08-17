@@ -52,3 +52,28 @@ export const generateFlashcards = async (content: string, userContext?: string):
     return [];
   }
 };
+
+export const extractRoutineFromData = async (rawData: string): Promise<{schedule: Record<string, any[]>} | null> => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/ai/extract-routine', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ rawData })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to extract routine from data');
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error: any) {
+    console.error('AI Routine Extraction Error:', error);
+    throw error;
+  }
+};

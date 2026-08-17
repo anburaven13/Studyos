@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CheckCircle2, Circle, Edit, Loader2, Sparkles, X } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Edit, Loader2, Sparkles, X, Wand2, FileJson, Brain, ArrowRight } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { extractRoutineFromData } from '../lib/aiService';
 
 type Block = {
   id: string;
@@ -23,6 +24,11 @@ export default function Routines() {
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [workingSchedule, setWorkingSchedule] = useState<RoutineSchedule | null>(null);
   const [isAutoModalOpen, setIsAutoModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importMode, setImportMode] = useState<'json' | 'ai'>('ai');
+  const [aiImporting, setAiImporting] = useState(false);
   
   const [autoWake, setAutoWake] = useState('07:00');
   const [autoSleep, setAutoSleep] = useState('22:00');
@@ -176,6 +182,65 @@ export default function Routines() {
     setIsAutoModalOpen(false);
   };
 
+  const handleImport = () => {
+    try {
+      setImportError('');
+      const parsed = JSON.parse(importText);
+      let extractedSchedule = null;
+      
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].schedule) {
+        extractedSchedule = parsed[0].schedule;
+      } else if (parsed.schedule) {
+        extractedSchedule = parsed.schedule;
+      } else {
+        extractedSchedule = parsed;
+      }
+
+      if (!extractedSchedule || typeof extractedSchedule !== 'object' || !days.some(day => extractedSchedule[day])) {
+        throw new Error('Invalid schedule format');
+      }
+
+      const newSchedule = { ...workingSchedule };
+      days.forEach(day => {
+        newSchedule[day] = extractedSchedule[day] || [];
+      });
+
+      setWorkingSchedule(newSchedule);
+      setIsImportModalOpen(false);
+      setImportText('');
+    } catch (e) {
+      setImportError('Invalid JSON or schedule format. Please check your data.');
+    }
+  };
+
+  const handleAiExtract = async () => {
+    if (!importText.trim()) {
+      setImportError('Please paste some data first.');
+      return;
+    }
+    setImportError('');
+    setAiImporting(true);
+    try {
+      const result = await extractRoutineFromData(importText);
+      if (result && result.schedule) {
+        const newSchedule = { ...workingSchedule };
+        days.forEach(day => {
+          newSchedule[day] = result.schedule[day] || [];
+        });
+        setWorkingSchedule(newSchedule);
+        setIsImportModalOpen(false);
+        setImportText('');
+        setImportMode('ai');
+      } else {
+        setImportError('AI could not extract a routine. Try providing more detail.');
+      }
+    } catch (error: any) {
+      setImportError(error.message || 'Failed to extract routine. Please try again.');
+    } finally {
+      setAiImporting(false);
+    }
+  };
+
   if (!schedule) {
     return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -216,6 +281,13 @@ export default function Routines() {
           </button>
         ) : (
           <div className="flex space-x-4">
+            <button 
+              onClick={() => { setImportMode('ai'); setIsImportModalOpen(true); }}
+              className="bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white px-4 py-2 rounded-md font-medium text-sm flex items-center space-x-2 hover:opacity-90 transition-opacity shadow-md"
+            >
+              <Wand2 className="w-4 h-4" />
+              <span>AI Import</span>
+            </button>
             <button 
               onClick={() => setIsAutoModalOpen(true)}
               className="bg-amber-500 text-white px-4 py-2 rounded-md font-medium text-sm flex items-center space-x-2 hover:opacity-90 transition-opacity"
@@ -412,6 +484,114 @@ export default function Routines() {
               <button onClick={handleAutoGenerate} className="w-full bg-amber-500 text-white py-2 rounded-md font-medium hover:opacity-90 mt-4">
                 Generate My Week
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card p-6 rounded-2xl shadow-xl w-full max-w-lg border">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center space-x-2">
+                <div className="bg-gradient-to-r from-violet-600 to-fuchsia-500 p-1.5 rounded-lg">
+                  <Wand2 className="w-4 h-4 text-white" />
+                </div>
+                <h2 className="text-xl font-semibold text-foreground">Smart Import</h2>
+              </div>
+              <button onClick={() => { setIsImportModalOpen(false); setImportError(''); setImportText(''); }} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mode Tabs */}
+            <div className="flex rounded-lg bg-muted p-1 mb-4">
+              <button
+                onClick={() => { setImportMode('ai'); setImportError(''); }}
+                className={cn(
+                  "flex-1 flex items-center justify-center space-x-2 py-2 rounded-md text-sm font-medium transition-all",
+                  importMode === 'ai' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Brain className="w-4 h-4" />
+                <span>AI Extract</span>
+              </button>
+              <button
+                onClick={() => { setImportMode('json'); setImportError(''); }}
+                className={cn(
+                  "flex-1 flex items-center justify-center space-x-2 py-2 rounded-md text-sm font-medium transition-all",
+                  importMode === 'json' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <FileJson className="w-4 h-4" />
+                <span>Direct JSON</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {importMode === 'ai' ? (
+                <>
+                  <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg p-3">
+                    <p className="text-sm text-violet-700 dark:text-violet-300">
+                      Paste <strong>anything</strong> — SQL dumps, JSON, CSV, or even plain text like <em>"I go to school from 8-2, study 4-6pm"</em>. AI will figure out the routine.
+                    </p>
+                  </div>
+                  <textarea 
+                    value={importText}
+                    onChange={e => setImportText(e.target.value)}
+                    disabled={aiImporting}
+                    className="w-full h-48 p-3 rounded-md border bg-background font-mono text-xs focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all disabled:opacity-50"
+                    placeholder={`Paste anything here...\n\nExamples:\n• SQL: SELECT * FROM routines WHERE user_id = '...'\n• JSON: [{"schedule": {"Monday": [...]}}]\n• Text: "School 8am-2pm, Lunch 2-3pm, Study 3-5pm"`}
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Paste a valid JSON object with the exact routine schedule format.
+                  </p>
+                  <textarea 
+                    value={importText}
+                    onChange={e => setImportText(e.target.value)}
+                    className="w-full h-48 p-3 rounded-md border bg-background font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder='{"Monday": [{"id": "mon-1", "title": "Study", "start": "09:00", "end": "11:00", "type": "study"}], ...}'
+                  />
+                </>
+              )}
+
+              {importError && (
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+                  <p className="text-sm text-destructive font-medium">{importError}</p>
+                </div>
+              )}
+
+              {importMode === 'ai' ? (
+                <button 
+                  onClick={handleAiExtract} 
+                  disabled={aiImporting || !importText.trim()}
+                  className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white py-2.5 rounded-md font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-md"
+                >
+                  {aiImporting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>AI is extracting your routine...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4" />
+                      <span>Extract with AI</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button 
+                  onClick={handleImport} 
+                  disabled={!importText.trim()}
+                  className="w-full bg-blue-600 text-white py-2.5 rounded-md font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply JSON Data
+                </button>
+              )}
             </div>
           </div>
         </div>

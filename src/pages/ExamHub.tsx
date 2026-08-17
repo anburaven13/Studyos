@@ -163,8 +163,9 @@ export default function ExamHub() {
           fetchExams();
           setIsModalOpen(false);
         } else {
-          console.error("Failed to extract exams from image");
-          alert("Failed to extract exams from the image. Please try again or add manually.");
+          const errData = await res.json().catch(() => ({}));
+          console.error("Failed to extract exams from image:", errData);
+          alert(errData.error || "Failed to extract exams from the image. Please try again or add manually.");
         }
         setIsExtracting(false);
       };

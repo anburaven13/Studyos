@@ -158,13 +158,29 @@ app.post('/api/exams/extract', authenticateToken, async (req: any, res: any) => 
     });
 
     const resultText = completion.choices[0]?.message?.content || '[]';
-    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
-    const exams = JSON.parse(jsonStr);
+    
+    // Better JSON array extraction: look for the first '[' and last ']'
+    const startIndex = resultText.indexOf('[');
+    const endIndex = resultText.lastIndexOf(']');
+    
+    let jsonStr = '[]';
+    if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
+      jsonStr = resultText.substring(startIndex, endIndex + 1);
+    } else {
+      // Fallback if no brackets found (shouldn't happen with strict prompt)
+      jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
+    }
 
-    res.json(exams);
+    try {
+      const exams = JSON.parse(jsonStr);
+      res.json(exams);
+    } catch (parseError) {
+      console.error("JSON Parse Error. AI returned:", resultText);
+      res.status(422).json({ error: 'AI returned invalid format. Please try a clearer image.' });
+    }
   } catch (error: any) {
     console.error('Extract exams error:', error);
-    res.status(500).json({ error: `Failed to extract exams: ${error.message}` });
+    res.status(500).json({ error: error.message || 'Failed to extract exams' });
   }
 });
 

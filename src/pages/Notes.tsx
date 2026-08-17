@@ -12,8 +12,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 type Note = { id: string; title: string; content: string; folder?: string; tags?: any; };
 
 export default function Notes() {
-  const [notesList, setNotesList] = useState<Note[]>([{ id: '1', title: '', content: '' }]);
-  const [activeNoteId, setActiveNoteId] = useState<string>('1');
+  const [notesList, setNotesList] = useState<Note[]>([{ id: 'new', title: '', content: '' }]);
+  const [activeNoteId, setActiveNoteId] = useState<string>('new');
   const [isEditing, setIsEditing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [summary, setSummary] = useState('');
@@ -57,11 +57,36 @@ export default function Notes() {
     fetchNotes();
   }, []);
 
+  // Track latest note for unmount saving
+  const latestNoteRef = React.useRef(activeNote);
+  useEffect(() => {
+    latestNoteRef.current = activeNote;
+  }, [activeNote]);
+
+  // Flush save on unmount
+  useEffect(() => {
+    return () => {
+      const note = latestNoteRef.current;
+      const token = localStorage.getItem('token');
+      if (note && note.id && note.id.toString() !== 'new' && note.id.toString() !== 'temp' && token) {
+        fetch(`/api/notes/${note.id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ title: note.title, content: note.content, folder: note.folder || 'General', tags: note.tags }),
+          keepalive: true
+        }).catch(() => {});
+      }
+    };
+  }, []);
+
   // Autosave to API
   useEffect(() => {
     if (!activeNote || !activeNote.id) return;
     // Skip autosave for the initial placeholder note
-    if (activeNote.id.toString() === '1' && activeNote.title === '') return;
+    if (activeNote.id.toString() === 'new' && activeNote.title === '') return;
     // Skip autosave immediately after creating a new note
     if (skipAutosaveRef.current) {
       skipAutosaveRef.current = false;
@@ -112,7 +137,7 @@ export default function Notes() {
         skipAutosaveRef.current = true;
         setNotesList(prev => {
           // Remove initial placeholder if present
-          const cleaned = prev.filter(n => n.id.toString() !== '1' && n.id.toString() !== 'temp');
+          const cleaned = prev.filter(n => n.id.toString() !== 'new' && n.id.toString() !== 'temp');
           return [newNote, ...cleaned];
         });
         setActiveNoteId(newNote.id.toString());

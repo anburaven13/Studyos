@@ -679,6 +679,23 @@ app.get('/api/dna', authenticateToken, async (req: any, res: any) => {
   }
 });
 
+app.delete('/api/dna/:id', authenticateToken, async (req: any, res: any) => {
+  try {
+    const result = await sql`
+      DELETE FROM knowledge_dna 
+      WHERE id = ${req.params.id} AND user_id = ${req.user.userId}
+      RETURNING *
+    `;
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'DNA gene not found' });
+    }
+    res.json({ message: 'Gene deleted successfully' });
+  } catch (error) {
+    console.error('Delete DNA error:', error);
+    res.status(500).json({ error: 'Failed to delete knowledge DNA' });
+  }
+});
+
 app.post('/api/dna/compile', authenticateToken, async (req: any, res: any) => {
   try {
     const { content, source_id } = req.body;

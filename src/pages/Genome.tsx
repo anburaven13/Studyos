@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dna, Network, BrainCircuit, Activity, Search } from 'lucide-react';
+import { Dna, Network, BrainCircuit, Activity, Search, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ConceptGene {
@@ -40,6 +40,26 @@ export default function Genome() {
     };
     fetchGenome();
   }, []);
+
+  const handleDeleteGene = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this concept from your Knowledge DNA?')) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/dna/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setGenome(prev => prev.filter(g => g.id !== id));
+        if (selectedGene?.id === id) {
+          setSelectedGene(null);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const filteredGenome = genome.filter(g => g.concept_name.toLowerCase().includes(search.toLowerCase()));
 
@@ -133,9 +153,18 @@ export default function Genome() {
               </div>
             ) : (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
-                <div>
-                  <h2 className="text-2xl font-bold">{selectedGene.concept_name}</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Source DNA compiled successfully.</p>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">{selectedGene.concept_name}</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Source DNA compiled successfully.</p>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteGene(selectedGene.id)}
+                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                    title="Delete Concept"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
                 </div>
 
                 <div className="space-y-4">

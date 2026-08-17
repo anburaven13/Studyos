@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Settings } from 'lucide-react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { simulateAiResponse } from '../lib/aiService';
 import { cn } from '../lib/utils';
 import { useAuth } from '../lib/AuthContext';
@@ -91,7 +92,7 @@ export default function Tutor() {
                 onChange={(e) => setProvider(e.target.value as any)}
                 className="w-full p-2.5 bg-background border rounded-lg text-sm outline-none focus:border-primary"
               >
-                <option value="groq">Groq (Llama-3 - Free)</option>
+                <option value="groq">Groq (GPT-OSS-120B)</option>
                 <option value="nvidia">Nvidia Nemotron (NVIDIA NIM)</option>
               </select>
             </div>
@@ -127,7 +128,7 @@ export default function Tutor() {
                   msg.content
                 ) : (
                   <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-border">
-                    <Markdown>{msg.content}</Markdown>
+                    <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                   </div>
                 )}
               </div>

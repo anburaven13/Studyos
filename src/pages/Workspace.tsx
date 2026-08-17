@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Bot, User, Send, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { simulateAiResponse } from '../lib/aiService';
 import { cn } from '../lib/utils';
 
@@ -125,7 +127,7 @@ export default function Workspace() {
             <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
               <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
               <p className="font-medium">Parsing document context...</p>
-              <p className="text-sm text-muted-foreground mt-1">Preparing Llama-3 AI...</p>
+              <p className="text-sm text-muted-foreground mt-1">Preparing AI...</p>
             </div>
           )}
         </div>
@@ -144,7 +146,13 @@ export default function Workspace() {
                   {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <div className={cn("max-w-[85%] rounded-xl p-3 text-sm leading-relaxed", msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 border')}>
-                  {msg.content}
+                  {msg.role === 'user' ? (
+                    msg.content
+                  ) : (
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-border">
+                      <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

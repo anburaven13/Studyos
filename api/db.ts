@@ -54,8 +54,20 @@ export const initializeDb = async () => {
       name TEXT NOT NULL,
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
+      source TEXT DEFAULT 'manual',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
+
+  // Add source column to existing planner_events tables
+  await sql`
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='planner_events' AND column_name='source') THEN
+            ALTER TABLE planner_events ADD COLUMN source TEXT DEFAULT 'manual';
+        END IF;
+    END
+    $$;
   `;
 
   await sql`

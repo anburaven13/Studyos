@@ -259,6 +259,77 @@ app.delete('/api/planner/:id', authenticateToken, async (req: any, res: any) => 
   }
 });
 
+// --- Merged Planner + Routine Endpoint ---
+app.get('/api/planner/merged', authenticateToken, async (req: any, res: any) => {
+  try {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = days[new Date().getDay()];
+
+    // Fetch manual planner events
+    const plannerEvents = await sql`SELECT * FROM planner_events WHERE user_id = ${req.user.userId} AND source = 'manual' ORDER BY start_time ASC`;
+
+    // Fetch today's routine blocks
+    const routines = await sql`SELECT schedule FROM routines WHERE user_id = ${req.user.userId}`;
+    let routineBlocks: any[] = [];
+    if (routines.length > 0 && routines[0].schedule && routines[0].schedule[todayName]) {
+      routineBlocks = routines[0].schedule[todayName].map((block: any) => ({
+        id: `routine-${block.id}`,
+        name: block.title,
+        start_time: block.start,
+        end_time: block.end,
+        source: 'routine',
+        routine_type: block.type
+      }));
+    }
+
+    // Merge and sort by start_time
+    const merged = [...plannerEvents.map((e: any) => ({ ...e, source: e.source || 'manual' })), ...routineBlocks];
+    merged.sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
+
+    res.json(merged);
+  } catch (error) {
+    console.error('Fetch merged planner error:', error);
+    res.status(500).json({ error: 'Failed to fetch merged planner' });
+  }
+});
+
+// --- Sync Routine → Planner ---
+app.post('/api/routines/sync-planner', authenticateToken, async (req: any, res: any) => {
+  try {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = days[new Date().getDay()];
+
+    const routines = await sql`SELECT schedule FROM routines WHERE user_id = ${req.user.userId}`;
+    if (routines.length === 0) {
+      return res.json({ synced: 0 });
+    }
+
+    const schedule = routines[0].schedule;
+    const todayBlocks = schedule[todayName] || [];
+
+    // Only sync school and class type blocks
+    const syncableBlocks = todayBlocks.filter((b: any) => b.type === 'school' || b.type === 'class');
+
+    // Remove old routine-synced events for this user
+    await sql`DELETE FROM planner_events WHERE user_id = ${req.user.userId} AND source = 'routine'`;
+
+    // Insert fresh synced blocks
+    let synced = 0;
+    for (const block of syncableBlocks) {
+      await sql`
+        INSERT INTO planner_events (user_id, name, start_time, end_time, source) 
+        VALUES (${req.user.userId}, ${block.title}, ${block.start}, ${block.end}, 'routine')
+      `;
+      synced++;
+    }
+
+    res.json({ synced, day: todayName });
+  } catch (error) {
+    console.error('Sync routine to planner error:', error);
+    res.status(500).json({ error: 'Failed to sync routine to planner' });
+  }
+});
+
 // --- Routines Routes ---
 const defaultRoutine = {
   "Monday": [],

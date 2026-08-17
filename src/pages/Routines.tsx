@@ -93,6 +93,12 @@ export default function Routines() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ schedule: sorted })
       });
+
+      // Sync routine school/class blocks to Planner timetable
+      await fetch('/api/routines/sync-planner', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
     } catch (e) {
       console.error(e);
     }

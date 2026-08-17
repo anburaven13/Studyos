@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Plus, X, Trash } from 'lucide-react';
+import { Play, Pause, RotateCcw, Plus, X, Trash, RefreshCw } from 'lucide-react';
 
 export default function Planner() {
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes
@@ -15,7 +15,7 @@ export default function Planner() {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      const res = await fetch('/api/planner', {
+      const res = await fetch('/api/planner/merged', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -151,26 +151,57 @@ export default function Planner() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-6">Today's Timetable</h2>
             
             <div className="relative">
-              <div className="space-y-4 relative z-10">
+            <div className="space-y-4 relative z-10">
                 {events.length === 0 ? (
                   <div className="text-muted-foreground text-sm p-4 text-center border border-dashed rounded-xl">
                     Your timetable is empty.
                   </div>
                 ) : (
-                  events.map(ev => (
-                    <div key={ev.id} className="flex items-center p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
-                      <div className="w-24 shrink-0 text-sm font-medium text-muted-foreground">
-                        {ev.start_time} - {ev.end_time}
+                  events.map(ev => {
+                    const isRoutine = ev.source === 'routine';
+                    const typeColor = isRoutine ? (
+                      ev.routine_type === 'school' ? 'border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20' :
+                      ev.routine_type === 'study' ? 'border-l-purple-500 bg-purple-50/50 dark:bg-purple-950/20' :
+                      ev.routine_type === 'class' ? 'border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20' :
+                      ev.routine_type === 'break' ? 'border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' :
+                      ev.routine_type === 'sleep' ? 'border-l-slate-500 bg-slate-50/50 dark:bg-slate-950/20' :
+                      'border-l-gray-300'
+                    ) : 'border-l-primary';
+                    const typeBadgeColor = isRoutine ? (
+                      ev.routine_type === 'school' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' :
+                      ev.routine_type === 'study' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' :
+                      ev.routine_type === 'class' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' :
+                      ev.routine_type === 'break' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' :
+                      'bg-gray-100 text-gray-700'
+                    ) : '';
+
+                    return (
+                      <div key={ev.id} className={`flex items-center p-4 rounded-xl border border-l-4 ${typeColor} transition-colors group`}>
+                        <div className="w-24 shrink-0 text-sm font-medium text-muted-foreground">
+                          {ev.start_time} - {ev.end_time}
+                        </div>
+                        <div className="w-1 h-12 bg-primary/20 rounded-full mx-4"></div>
+                        <div className="flex-1">
+                          <p className="font-medium">{ev.name}</p>
+                          {isRoutine && (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${typeBadgeColor}`}>
+                                {ev.routine_type}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                From Routine
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {!isRoutine && (
+                          <button onClick={() => deleteEvent(ev.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Trash className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      <div className="w-1 h-12 bg-primary/20 rounded-full mx-4"></div>
-                      <div className="flex-1">
-                        <p className="font-medium">{ev.name}</p>
-                      </div>
-                      <button onClick={() => deleteEvent(ev.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

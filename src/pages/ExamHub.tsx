@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, TrendingUp, Plus, X, Trash } from 'lucide-react';
+import { Target, TrendingUp, Plus, X, Trash, Upload, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function ExamHub() {
@@ -8,6 +8,7 @@ export default function ExamHub() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newExamName, setNewExamName] = useState('');
   const [newExamDate, setNewExamDate] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
 
   const fetchExams = async () => {
     const token = localStorage.getItem('token');
@@ -118,6 +119,59 @@ export default function ExamHub() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsExtracting(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+
+        const res = await fetch('/api/exams/extract', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ imageBase64: base64String })
+        });
+
+        if (res.ok) {
+          const extractedExams = await res.json();
+          // For each extracted exam, create it
+          for (const exam of extractedExams) {
+            if (exam.name && exam.date) {
+              await fetch('/api/exams', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ name: exam.name, date: exam.date, confidence: 50 })
+              });
+            }
+          }
+          fetchExams();
+          setIsModalOpen(false);
+        } else {
+          console.error("Failed to extract exams from image");
+          alert("Failed to extract exams from the image. Please try again or add manually.");
+        }
+        setIsExtracting(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      setIsExtracting(false);
     }
   };
 
@@ -234,6 +288,31 @@ export default function ExamHub() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            <div className="mb-6 space-y-3">
+              <label className="flex items-center justify-center w-full p-4 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-colors group">
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isExtracting} />
+                <div className="flex flex-col items-center text-muted-foreground group-hover:text-primary transition-colors">
+                  {isExtracting ? (
+                    <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                  ) : (
+                    <Upload className="w-8 h-8 mb-2" />
+                  )}
+                  <span className="text-sm font-medium flex items-center gap-1">
+                    {isExtracting ? 'Extracting with AI...' : (
+                      <>Auto-Extract from Image <Sparkles className="w-3 h-3 text-amber-500" /></>
+                    )}
+                  </span>
+                  <span className="text-xs opacity-70 mt-1 text-center">Upload exam timetable/schedule</span>
+                </div>
+              </label>
+            </div>
+            
+            <div className="relative flex items-center py-2 mb-4">
+              <div className="flex-grow border-t border-muted"></div>
+              <span className="flex-shrink-0 mx-4 text-muted-foreground text-xs uppercase">Or add manually</span>
+              <div className="flex-grow border-t border-muted"></div>
+            </div>
+
             <form onSubmit={handleAddExam} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Subject Name</label>

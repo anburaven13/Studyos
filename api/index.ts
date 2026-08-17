@@ -18,7 +18,7 @@ const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'producti
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' ? (process.env.FRONTEND_URL || '*') : '*'
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Initialize DB schema on cold start
 let dbInitialized = false;
@@ -129,6 +129,42 @@ app.get('/api/exams', authenticateToken, async (req: any, res: any) => {
   } catch (error) {
     console.error('Fetch exams error:', error);
     res.status(500).json({ error: 'Failed to fetch exams' });
+  }
+});
+app.post('/api/exams/extract', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Extract the exams list from this image. Return a JSON array of objects with "name" (string) and "date" in YYYY-MM-DD format (string). Do not include any markdown, just the raw JSON array.'
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageBase64 }
+            }
+          ]
+        }
+      ],
+      model: 'qwen/qwen3.6-27b',
+    });
+
+    const resultText = completion.choices[0]?.message?.content || '[]';
+    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
+    const exams = JSON.parse(jsonStr);
+
+    res.json(exams);
+  } catch (error: any) {
+    console.error('Extract exams error:', error);
+    res.status(500).json({ error: `Failed to extract exams: ${error.message}` });
   }
 });
 

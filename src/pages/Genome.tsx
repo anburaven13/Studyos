@@ -97,9 +97,9 @@ export default function Genome() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 lg:overflow-hidden pb-4 lg:pb-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-0 overflow-hidden pb-4 lg:pb-0">
         {/* Genome Grid */}
-        <div className="flex-1 border rounded-2xl bg-card shadow-sm p-4 md:p-6 lg:overflow-y-auto shrink-0">
+        <div className="flex-1 border rounded-2xl bg-card shadow-sm p-4 md:p-6 overflow-y-auto min-h-0">
           {genome.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <Network className="w-16 h-16 mb-4 opacity-20" />
@@ -140,7 +140,7 @@ export default function Genome() {
         </div>
 
         {/* Gene Inspector */}
-        <div className="w-full lg:w-[450px] border rounded-2xl bg-card shadow-sm flex flex-col shrink-0 h-[500px] lg:h-auto overflow-hidden">
+        <div className="w-full lg:w-[450px] border rounded-2xl bg-card shadow-sm flex flex-col shrink-0 h-[40vh] lg:h-auto min-h-0 overflow-hidden">
           <div className="p-4 border-b bg-muted/10 font-semibold flex items-center space-x-2">
             <Activity className="w-5 h-5 text-primary" />
             <span>Gene Inspector</span>

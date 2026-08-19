@@ -76,8 +76,8 @@ export default function Genome() {
   );
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-[1400px] mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
+      <div className="mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center space-x-3">
             <Dna className="w-8 h-8 text-primary" />
@@ -85,7 +85,7 @@ export default function Genome() {
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">Your biological model of understanding.</p>
         </div>
-        <div className="relative w-64">
+        <div className="relative w-full md:w-64">
           <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input 
             type="text"
@@ -97,9 +97,9 @@ export default function Genome() {
         </div>
       </div>
 
-      <div className="flex-1 flex space-x-6 min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 lg:overflow-hidden pb-4 lg:pb-0 overflow-y-auto">
         {/* Genome Grid */}
-        <div className="flex-1 border rounded-2xl bg-card shadow-sm p-6 overflow-y-auto">
+        <div className="flex-1 border rounded-2xl bg-card shadow-sm p-4 md:p-6 lg:overflow-y-auto shrink-0">
           {genome.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <Network className="w-16 h-16 mb-4 opacity-20" />
@@ -140,7 +140,7 @@ export default function Genome() {
         </div>
 
         {/* Gene Inspector */}
-        <div className="w-[450px] border rounded-2xl bg-card shadow-sm flex flex-col overflow-hidden">
+        <div className="w-full lg:w-[450px] border rounded-2xl bg-card shadow-sm flex flex-col shrink-0 h-[500px] lg:h-auto overflow-hidden">
           <div className="p-4 border-b bg-muted/10 font-semibold flex items-center space-x-2">
             <Activity className="w-5 h-5 text-primary" />
             <span>Gene Inspector</span>

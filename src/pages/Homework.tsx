@@ -115,8 +115,8 @@ export default function Homework() {
   const completedTasks = tasks.filter(t => t.completed);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col relative">
-      <div className="mb-10 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col relative">
+      <div className="mb-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Homework</h1>
           <p className="text-muted-foreground mt-1">Manage your assignments and deadlines.</p>
@@ -135,7 +135,7 @@ export default function Homework() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">To Do ({activeTasks.length})</h2>
           <div className="space-y-2">
             {activeTasks.map(task => (
-              <div key={task.id} className="group flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+              <div key={task.id} className="group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors gap-4 sm:gap-0">
                 <div className="flex items-center space-x-4">
                   <button onClick={() => toggleTask(task.id)} className="text-muted-foreground hover:text-primary transition-colors">
                     <Circle className="w-5 h-5" />
@@ -181,7 +181,7 @@ export default function Homework() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Completed ({completedTasks.length})</h2>
             <div className="space-y-2">
               {completedTasks.map(task => (
-                <div key={task.id} className="group flex items-center justify-between p-4 rounded-xl border bg-muted/20 opacity-70">
+                <div key={task.id} className="group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-muted/20 opacity-70 gap-4 sm:gap-0">
                   <div className="flex items-center space-x-4">
                     <button onClick={() => toggleTask(task.id)} className="text-primary">
                       <Check className="w-5 h-5" />
@@ -207,7 +207,7 @@ export default function Homework() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card p-6 rounded-2xl shadow-xl w-full max-w-md border">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
               <h2 className="text-xl font-semibold">Add Assignment</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />

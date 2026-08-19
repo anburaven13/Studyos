@@ -62,8 +62,8 @@ export default function Tutor() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
-      <div className="mb-6 flex items-center space-x-3">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="p-2 bg-primary/10 text-primary rounded-lg">
           <Sparkles className="w-6 h-6" />
         </div>
@@ -148,8 +148,7 @@ export default function Tutor() {
           )}
           <div ref={endOfMessagesRef} />
         </div>
-        
-        <div className="p-4 border-t bg-background flex items-center space-x-4">
+        <div className="p-4 border-t bg-background flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
           <input 
             type="text"
             className="flex-1 bg-muted/50 border border-transparent focus:border-border rounded-xl px-4 py-3 outline-none text-sm transition-colors"

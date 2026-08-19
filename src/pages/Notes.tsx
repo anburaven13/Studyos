@@ -309,8 +309,8 @@ export default function Notes() {
   }, {});
 
   return (
-    <div className="p-8 max-w-6xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
-      <div className="mb-8 flex items-center justify-between flex-shrink-0">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto w-full min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col">
+      <div className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">AI Notes</h1>
           <div className="flex items-center space-x-2 mt-1">
@@ -322,7 +322,7 @@ export default function Notes() {
             </div>
           </div>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap gap-3">
           <button 
             onClick={() => setIsEditing(!isEditing)}
             className="border bg-background text-foreground px-4 py-2 rounded-md font-medium text-sm hover:bg-muted transition-colors"
@@ -353,9 +353,9 @@ export default function Notes() {
         </div>
       </div>
 
-      <div className="border rounded-2xl shadow-sm flex flex-1 overflow-hidden bg-card">
+      <div className="border rounded-2xl shadow-sm flex flex-col md:flex-row flex-1 overflow-hidden bg-card">
         {/* Sidebar */}
-        <div className="w-64 border-r bg-muted/20 flex-shrink-0 overflow-y-auto">
+        <div className="w-full md:w-64 border-b md:border-b-0 md:border-r bg-muted/20 flex-shrink-0 overflow-y-auto">
           {Object.keys(groupedNotes).map(folder => (
             <div key={folder} className="mb-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-6 mt-4">{folder}</p>
@@ -390,7 +390,7 @@ export default function Notes() {
         </div>
 
         {/* Editor / Preview */}
-        <div className="flex-1 flex relative divide-x">
+        <div className="flex-1 flex flex-col lg:flex-row relative divide-y lg:divide-y-0 lg:divide-x">
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             {quizActive ? (
               <div className="w-full h-full p-8 overflow-y-auto flex flex-col items-center justify-center">
@@ -405,7 +405,7 @@ export default function Notes() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-between items-center mb-8">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                         <span className="text-sm font-semibold text-muted-foreground tracking-widest uppercase">Question {currentQuestionIndex + 1} of {quizQuestions.length}</span>
                         <button onClick={() => setQuizActive(false)} className="text-sm text-muted-foreground hover:text-foreground underline">Exit Quiz</button>
                       </div>
@@ -458,12 +458,12 @@ export default function Notes() {
               </div>
             ) : isEditing ? (
               <div className="w-full h-full flex flex-col">
-                <div className="px-8 pt-8 flex items-center space-x-4 mb-4">
+                <div className="px-4 md:px-8 pt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
                   <input 
                     type="text"
                     value={activeNote.folder || ''}
                     onChange={(e) => setNotesList(prev => prev.map(n => n.id.toString() === activeNoteId.toString() ? { ...n, folder: e.target.value } : n))}
-                    className="w-1/3 px-3 py-1.5 text-sm font-medium bg-muted/50 border rounded-md outline-none focus:border-primary/50 transition-colors"
+                    className="w-full sm:w-1/3 px-3 py-1.5 text-sm font-medium bg-muted/50 border rounded-md outline-none focus:border-primary/50 transition-colors"
                     placeholder="Folder (e.g., Physics)"
                   />
                   <input 
@@ -510,7 +510,7 @@ export default function Notes() {
           </div>
           
           {/* AI Sidebar */}
-          <div className="w-80 bg-muted/10 p-6 flex flex-col h-full overflow-y-auto">
+          <div className="w-full lg:w-80 bg-muted/10 p-6 flex flex-col flex-shrink-0 h-full overflow-y-auto">
             <h3 className="font-semibold mb-6 flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-primary" />
               <span>AI Tools</span>

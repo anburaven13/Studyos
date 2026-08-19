@@ -93,8 +93,8 @@ export default function Planner() {
   const seconds = (timeLeft % 60).toString().padStart(2, '0');
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full relative">
-      <div className="mb-10 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto w-full relative">
+      <div className="mb-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Study Planner</h1>
           <p className="text-muted-foreground mt-1">Focus blocks and daily timetable.</p>
@@ -176,11 +176,11 @@ export default function Planner() {
                     ) : '';
 
                     return (
-                      <div key={ev.id} className={`flex items-center p-4 rounded-xl border border-l-4 ${typeColor} transition-colors group`}>
-                        <div className="w-24 shrink-0 text-sm font-medium text-muted-foreground">
+                      <div key={ev.id} className={`flex flex-col sm:flex-row items-start sm:items-center p-4 rounded-xl border border-l-4 ${typeColor} transition-colors group gap-2 sm:gap-0`}>
+                        <div className="w-auto sm:w-24 shrink-0 text-sm font-medium text-muted-foreground">
                           {ev.start_time} - {ev.end_time}
                         </div>
-                        <div className="w-1 h-12 bg-primary/20 rounded-full mx-4"></div>
+                        <div className="hidden sm:block w-1 h-12 bg-primary/20 rounded-full mx-4"></div>
                         <div className="flex-1">
                           <p className="font-medium">{ev.name}</p>
                           {isRoutine && (
@@ -213,7 +213,7 @@ export default function Planner() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card p-6 rounded-2xl shadow-xl w-full max-w-md border">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
               <h2 className="text-xl font-semibold">Add Class / Event</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />

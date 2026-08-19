@@ -84,8 +84,8 @@ export default function Workspace() {
   };
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-[1400px] mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">
+      <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">PDF Workspace</h1>
           <p className="text-muted-foreground mt-1">Chat directly with your lecture slides and textbooks.</p>
@@ -106,9 +106,9 @@ export default function Workspace() {
         </button>
       </div>
 
-      <div className="flex-1 flex space-x-6 min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 pb-4 lg:pb-0 overflow-y-auto lg:overflow-hidden">
         {/* PDF Viewer */}
-        <div className="flex-1 border rounded-2xl bg-muted/20 flex flex-col items-center justify-center overflow-hidden relative">
+        <div className="flex-1 border rounded-2xl bg-muted/20 flex flex-col items-center justify-center overflow-hidden relative min-h-[300px] lg:min-h-0 shrink-0 lg:shrink">
           {pdfUrl ? (
             <iframe 
               src={`${pdfUrl}#toolbar=0`} 
@@ -133,7 +133,7 @@ export default function Workspace() {
         </div>
 
         {/* Chat Sidebar */}
-        <div className="w-[450px] border rounded-2xl bg-card shadow-sm flex flex-col overflow-hidden">
+        <div className="w-full lg:w-[450px] border rounded-2xl bg-card shadow-sm flex flex-col overflow-hidden shrink-0 h-[500px] lg:h-auto">
           <div className="p-4 border-b bg-muted/10 font-semibold flex items-center space-x-2">
             <Bot className="w-5 h-5 text-primary" />
             <span>Document AI</span>

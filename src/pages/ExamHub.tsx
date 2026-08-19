@@ -189,8 +189,8 @@ export default function ExamHub() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col relative">
-      <div className="mb-10 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col relative">
+      <div className="mb-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Exam Hub</h1>
           <p className="text-muted-foreground mt-1">Track your progress and pinpoint weak spots.</p>
@@ -217,7 +217,7 @@ export default function ExamHub() {
           ) : (
             <>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-8">Next Exam Countdown</h2>
-              <div className="flex items-center justify-center space-x-6 text-center">
+              <div className="flex items-center justify-center space-x-4 md:space-x-6 text-center">
                 <div>
                   <div className="text-6xl font-bold tracking-tighter tabular-nums">{timeLeft.days}</div>
                   <div className="text-sm text-muted-foreground mt-2 font-medium">DAYS</div>
@@ -243,7 +243,7 @@ export default function ExamHub() {
             {subjects.length === 0 && <p className="text-muted-foreground">No subjects added yet.</p>}
             {subjects.map((sub, i) => (
               <div key={sub.id} className="flex flex-col space-y-4">
-                <div className="flex justify-between items-end">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 sm:gap-0">
                   <div>
                     <p className="font-medium text-lg">{sub.name}</p>
                     <p className="text-sm text-muted-foreground">Exam on {sub.date}</p>
@@ -283,7 +283,7 @@ export default function ExamHub() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card p-6 rounded-2xl shadow-xl w-full max-w-md border">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
               <h2 className="text-xl font-semibold">Add New Exam</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />

@@ -271,8 +271,8 @@ export default function Routines() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col relative">
-      <div className="mb-10 flex items-center justify-between">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto w-full h-[calc(100vh-4rem)] flex flex-col relative">
+      <div className="mb-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Daily Routines</h1>
           <p className="text-muted-foreground mt-1">Structure your days for maximum productivity.</p>
@@ -286,7 +286,7 @@ export default function Routines() {
             <span>Edit Weekly Routine</span>
           </button>
         ) : (
-          <div className="flex space-x-4">
+          <div className="flex flex-wrap gap-4">
             <button 
               onClick={() => { setImportMode('ai'); setIsImportModalOpen(true); }}
               className="bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white px-4 py-2 rounded-md font-medium text-sm flex items-center space-x-2 hover:opacity-90 transition-opacity shadow-md"
@@ -334,7 +334,7 @@ export default function Routines() {
                 const isChecked = progress[block.id];
                 return (
                   <div key={block.id} className={cn(
-                    "flex items-center justify-between p-4 rounded-xl border transition-all duration-300",
+                    "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 p-4 rounded-xl border transition-all duration-300",
                     isChecked ? "bg-muted/30 opacity-60" : "bg-card shadow-sm hover:shadow-md"
                   )}>
                     <div className="flex items-center space-x-4">
@@ -374,7 +374,7 @@ export default function Routines() {
 
           <div className="flex-1 overflow-y-auto space-y-3">
             {workingSchedule?.[selectedDay]?.map((block, index) => (
-              <div key={index} className="flex items-center space-x-3 p-3 rounded-xl border bg-card">
+              <div key={index} className="flex flex-wrap items-center gap-3 p-3 rounded-xl border bg-card">
                 <input 
                   type="text" 
                   value={block.title}
@@ -456,7 +456,7 @@ export default function Routines() {
       {isAutoModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card p-6 rounded-2xl shadow-xl w-full max-w-md border">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
               <div className="flex items-center space-x-2 text-amber-500">
                 <Sparkles className="w-5 h-5" />
                 <h2 className="text-xl font-semibold text-foreground">Auto-Generate Routine</h2>
@@ -498,7 +498,7 @@ export default function Routines() {
       {isImportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card p-6 rounded-2xl shadow-xl w-full max-w-lg border">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
               <div className="flex items-center space-x-2">
                 <div className="bg-gradient-to-r from-violet-600 to-fuchsia-500 p-1.5 rounded-lg">
                   <Wand2 className="w-4 h-4 text-white" />

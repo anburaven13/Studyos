@@ -5,9 +5,12 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import sql, { initializeDb } from './db.js';
 import Groq from 'groq-sdk';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || 'MISSING_KEY'
+  apiKey: process.env.GROQ_API_KEY || 'MISSING_KEY'
 });
 
 dotenv.config();
@@ -15,10 +18,66 @@ dotenv.config();
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'studyos_super_secret_key_for_dev' : (() => { throw new Error('JWT_SECRET is required in production') })());
 
+app.use(helmet());
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? (process.env.FRONTEND_URL || '*') : '*'
+  origin: process.env.NODE_ENV === 'production'
+    ? (process.env.FRONTEND_URL || 'https://studyos-snowy.vercel.app')
+    : '*',
+  credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100kb' }));
+
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests, please try again later.' } }));
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts. Please try again in 15 minutes.' } });
+
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 15, message: { error: 'AI rate limit reached. Please wait a moment.' } });
+
+const registerSchema = z.object({
+  email: z.string().email('Invalid email format').max(255),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email format').max(255),
+  password: z.string().min(1, 'Password is required').max(128),
+});
+
+const examSchema = z.object({
+  name: z.string().min(1).max(255),
+  date: z.string().min(1).max(20),
+  confidence: z.number().int().min(0).max(100).optional().default(50),
+});
+
+const homeworkSchema = z.object({
+  title: z.string().min(1).max(255),
+  subject: z.string().min(1).max(255),
+  due_date: z.string().min(1).max(20),
+});
+
+const noteSchema = z.object({
+  title: z.string().min(1).max(255),
+  content: z.string().max(100000).optional(),
+  folder: z.string().max(255).optional().default('General'),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+});
+
+const plannerSchema = z.object({
+  name: z.string().min(1).max(255),
+  start_time: z.string().min(1).max(20),
+  end_time: z.string().min(1).max(20),
+});
+
+const aiChatSchema = z.object({
+  prompt: z.string().min(1).max(8000),
+  customSystemPrompt: z.string().max(4000).optional(),
+  userContext: z.string().max(500).optional(),
+  providerInfo: z.object({
+    provider: z.enum(['groq', 'openrouter', 'nvidia']),
+    apiKey: z.string().max(256).optional(),
+    model: z.string().max(128).optional(),
+  }).optional(),
+});
 
 // Initialize DB schema on cold start
 let dbInitialized = false;
@@ -36,15 +95,16 @@ app.use(async (req, res, next) => {
 
 // --- Authentication Routes ---
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { email, password } = parsed.data;
 
     const existingUsers = await sql`SELECT id FROM users WHERE email = ${email}`;
     if (existingUsers.length > 0) return res.status(400).json({ error: 'Email already in use' });
 
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const result = await sql`
       INSERT INTO users (email, password_hash) 
       VALUES (${email}, ${passwordHash}) 
@@ -60,19 +120,22 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { email, password } = parsed.data;
+
+    const pwRows = await sql`SELECT id, password_hash FROM users WHERE email = ${email}`;
+    if (pwRows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
     
-    if (users.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
-    const user = users[0];
-    
-    const isMatch = bcrypt.compareSync(password, user.password_hash);
+    const isMatch = await bcrypt.compare(password, pwRows[0].password_hash);
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
+    const users = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${pwRows[0].id}`;
+    const user = users[0];
+
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    delete user.password_hash;
     res.json({ token, user });
   } catch (error) {
     console.error('Login error:', error);
@@ -131,11 +194,14 @@ app.get('/api/exams', authenticateToken, async (req: any, res: any) => {
     res.status(500).json({ error: 'Failed to fetch exams' });
   }
 });
-app.post('/api/exams/extract', authenticateToken, async (req: any, res: any) => {
+app.post('/api/exams/extract', express.json({ limit: '5mb' }), authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
     const { imageBase64 } = req.body;
-    if (!imageBase64) {
+    if (!imageBase64 || typeof imageBase64 !== 'string') {
       return res.status(400).json({ error: 'No image provided' });
+    }
+    if (imageBase64.length > 4 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image too large. Max 4MB.' });
     }
 
     const completion = await groq.chat.completions.create({
@@ -180,13 +246,15 @@ app.post('/api/exams/extract', authenticateToken, async (req: any, res: any) => 
     }
   } catch (error: any) {
     console.error('Extract exams error:', error);
-    res.status(500).json({ error: error.message || 'Failed to extract exams' });
+    res.status(500).json({ error: 'Failed to extract exams' });
   }
 });
 
 app.post('/api/exams', authenticateToken, async (req: any, res: any) => {
   try {
-    const { name, date, confidence } = req.body;
+    const parsed = examSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { name, date, confidence } = parsed.data;
     const result = await sql`
       INSERT INTO exams (user_id, name, date, confidence) 
       VALUES (${req.user.userId}, ${name}, ${date}, ${confidence || 50})
@@ -237,7 +305,9 @@ app.get('/api/homework', authenticateToken, async (req: any, res: any) => {
 
 app.post('/api/homework', authenticateToken, async (req: any, res: any) => {
   try {
-    const { title, subject, due_date } = req.body;
+    const parsed = homeworkSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { title, subject, due_date } = parsed.data;
     const result = await sql`
       INSERT INTO homework (user_id, title, subject, due_date) 
       VALUES (${req.user.userId}, ${title}, ${subject}, ${due_date})
@@ -288,7 +358,9 @@ app.get('/api/planner', authenticateToken, async (req: any, res: any) => {
 
 app.post('/api/planner', authenticateToken, async (req: any, res: any) => {
   try {
-    const { name, start_time, end_time } = req.body;
+    const parsed = plannerSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { name, start_time, end_time } = parsed.data;
     const result = await sql`
       INSERT INTO planner_events (user_id, name, start_time, end_time) 
       VALUES (${req.user.userId}, ${name}, ${start_time}, ${end_time})
@@ -467,7 +539,9 @@ app.get('/api/notes', authenticateToken, async (req: any, res: any) => {
 
 app.post('/api/notes', authenticateToken, async (req: any, res: any) => {
   try {
-    const { title, content, folder, tags } = req.body;
+    const parsed = noteSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { title, content, folder, tags } = parsed.data;
     const result = await sql`
       INSERT INTO notes (user_id, title, content, folder, tags) 
       VALUES (${req.user.userId}, ${title}, ${content}, ${folder || 'General'}, ${tags ? JSON.stringify(tags) : '[]'})
@@ -540,9 +614,11 @@ app.post('/api/study_sessions', authenticateToken, async (req: any, res: any) =>
 });
 
 // --- AI Routes ---
-app.post('/api/ai/chat', authenticateToken, async (req: any, res: any) => {
+app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
-    const { prompt, customSystemPrompt, userContext, providerInfo } = req.body;
+    const parsed = aiChatSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { prompt, customSystemPrompt, userContext, providerInfo } = parsed.data;
     const baseSystemPrompt = customSystemPrompt || "You are a highly capable, versatile AI assistant. You can be an excellent tutor, but you are happy to discuss ANY topic, answer any question, or assist with any task the user requests, whether it is study-related or not.";
     const fullSystemPrompt = userContext 
       ? `${baseSystemPrompt}\n\nIf the user asks an educational or study-related question, consider that they are a student in: ${userContext}.`
@@ -587,11 +663,11 @@ app.post('/api/ai/chat', authenticateToken, async (req: any, res: any) => {
     res.json({ result: chatCompletion.choices[0]?.message?.content || 'No response generated.' });
   } catch (error: any) {
     console.error('AI Chat Error:', error);
-    res.status(500).json({ error: `[Error] Failed to connect to AI: ${error.message}` });
+    res.status(500).json({ error: 'Failed to connect to AI' });
   }
 });
 
-app.post('/api/ai/flashcards', authenticateToken, async (req: any, res: any) => {
+app.post('/api/ai/flashcards', authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
     const { content, userContext } = req.body;
     const prompt = `Generate 3-5 flashcards based on these notes:\n\n${content}`;
@@ -617,7 +693,7 @@ app.post('/api/ai/flashcards', authenticateToken, async (req: any, res: any) => 
   }
 });
 
-app.post('/api/ai/quiz', authenticateToken, async (req: any, res: any) => {
+app.post('/api/ai/quiz', authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
     const { content, userContext } = req.body;
     const prompt = `Generate a 5-question multiple-choice quiz based on these notes:\n\n${content}`;
@@ -643,7 +719,7 @@ app.post('/api/ai/quiz', authenticateToken, async (req: any, res: any) => {
   }
 });
 
-app.post('/api/ai/extract-routine', authenticateToken, async (req: any, res: any) => {
+app.post('/api/ai/extract-routine', authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
     const { rawData } = req.body;
     if (!rawData || typeof rawData !== 'string' || rawData.trim().length === 0) {
@@ -716,7 +792,7 @@ RULES:
     if (error instanceof SyntaxError) {
       return res.status(422).json({ error: 'AI returned an invalid response. Please try again with clearer data.' });
     }
-    res.status(500).json({ error: `Failed to extract routine: ${error.message}` });
+    res.status(500).json({ error: 'Failed to extract routine' });
   }
 });
 

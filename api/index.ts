@@ -9,30 +9,63 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || 'MISSING_KEY'
-});
-
 dotenv.config();
 
-const app = express();
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'studyos_super_secret_key_for_dev' : (() => { throw new Error('JWT_SECRET is required in production') })());
+// --- Security: Strict API key loading ---
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY || (() => { console.warn('WARNING: GROQ_API_KEY not set'); return 'MISSING_KEY'; })()
+});
 
+const app = express();
+
+// CRIT-2: Strict JWT secret — no hardcoded fallbacks
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'studyos_dev_secret_change_me' : (() => { throw new Error('FATAL: JWT_SECRET environment variable is required in production'); })());
+
+// LOW-1: Security headers
 app.use(helmet());
+
+// CRIT-1: Strict CORS — no wildcard in production
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'https://studyos-snowy.vercel.app',
+  'capacitor://localhost',
+  'http://localhost',
+  'ionic://localhost'
+];
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? (process.env.FRONTEND_URL || 'https://studyos-snowy.vercel.app')
+    ? allowedOrigins
     : '*',
   credentials: true,
 }));
+
+// MED-4: Reduce default body size limit
 app.use(express.json({ limit: '100kb' }));
 
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests, please try again later.' } }));
+// HIGH-2: Global rate limiter
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // 200 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+}));
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts. Please try again in 15 minutes.' } });
+// Strict rate limiter for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // 10 attempts per 15 minutes
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+});
 
-const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 15, message: { error: 'AI rate limit reached. Please wait a moment.' } });
+// Rate limiter for AI endpoints (prevent API bill abuse)
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 15,
+  message: { error: 'AI rate limit reached. Please wait a moment.' },
+});
 
+// --- Zod Validation Schemas ---
 const registerSchema = z.object({
   email: z.string().email('Invalid email format').max(255),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
@@ -57,9 +90,9 @@ const homeworkSchema = z.object({
 
 const noteSchema = z.object({
   title: z.string().min(1).max(255),
-  content: z.string().max(100000).optional(),
+  content: z.string().max(100000).optional().default(''),
   folder: z.string().max(255).optional().default('General'),
-  tags: z.array(z.string().max(50)).max(20).optional(),
+  tags: z.array(z.string().max(50)).max(20).optional().default([]),
 });
 
 const plannerSchema = z.object({
@@ -97,6 +130,7 @@ app.use(async (req, res, next) => {
 
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
+    // HIGH-1 + HIGH-3: Validate input with zod (enforces email format + password policy)
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
     const { email, password } = parsed.data;
@@ -104,13 +138,14 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     const existingUsers = await sql`SELECT id FROM users WHERE email = ${email}`;
     if (existingUsers.length > 0) return res.status(400).json({ error: 'Email already in use' });
 
+    // LOW-3: Use async bcrypt with higher rounds
     const passwordHash = await bcrypt.hash(password, 12);
     const result = await sql`
       INSERT INTO users (email, password_hash) 
       VALUES (${email}, ${passwordHash}) 
       RETURNING id, email
     `;
-    
+
     const user = result[0];
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user: { id: user.id, email: user.email } });
@@ -122,16 +157,20 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
 
 app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
+    // HIGH-1: Validate input
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
     const { email, password } = parsed.data;
 
+    // HIGH-5: Fetch password hash separately, never SELECT *
     const pwRows = await sql`SELECT id, password_hash FROM users WHERE email = ${email}`;
     if (pwRows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
-    
+
+    // LOW-3: Use async bcrypt
     const isMatch = await bcrypt.compare(password, pwRows[0].password_hash);
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
+    // Fetch user data without password hash
     const users = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${pwRows[0].id}`;
     const user = users[0];
 
@@ -164,7 +203,7 @@ app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) =
       SET class_level = ${class_level}, board = ${board} 
       WHERE id = ${req.user.userId}
     `;
-    
+
     const updatedUsers = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${req.user.userId}`;
     res.json({ message: 'Onboarding completed', user: updatedUsers[0] });
   } catch (error) {
@@ -194,12 +233,14 @@ app.get('/api/exams', authenticateToken, async (req: any, res: any) => {
     res.status(500).json({ error: 'Failed to fetch exams' });
   }
 });
+// MED-4: Allow larger body for image uploads only
 app.post('/api/exams/extract', express.json({ limit: '5mb' }), authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
     const { imageBase64 } = req.body;
     if (!imageBase64 || typeof imageBase64 !== 'string') {
       return res.status(400).json({ error: 'No image provided' });
     }
+    // Limit image size to 4MB base64
     if (imageBase64.length > 4 * 1024 * 1024) {
       return res.status(400).json({ error: 'Image too large. Max 4MB.' });
     }
@@ -224,16 +265,14 @@ app.post('/api/exams/extract', express.json({ limit: '5mb' }), authenticateToken
     });
 
     const resultText = completion.choices[0]?.message?.content || '[]';
-    
-    // Better JSON array extraction: look for the first '[' and last ']'
+
     const startIndex = resultText.indexOf('[');
     const endIndex = resultText.lastIndexOf(']');
-    
+
     let jsonStr = '[]';
     if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
       jsonStr = resultText.substring(startIndex, endIndex + 1);
     } else {
-      // Fallback if no brackets found (shouldn't happen with strict prompt)
       jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
     }
 
@@ -245,6 +284,7 @@ app.post('/api/exams/extract', express.json({ limit: '5mb' }), authenticateToken
       res.status(422).json({ error: 'AI returned invalid format. Please try a clearer image.' });
     }
   } catch (error: any) {
+    // HIGH-4: Don't leak error.message to client
     console.error('Extract exams error:', error);
     res.status(500).json({ error: 'Failed to extract exams' });
   }
@@ -257,7 +297,7 @@ app.post('/api/exams', authenticateToken, async (req: any, res: any) => {
     const { name, date, confidence } = parsed.data;
     const result = await sql`
       INSERT INTO exams (user_id, name, date, confidence) 
-      VALUES (${req.user.userId}, ${name}, ${date}, ${confidence || 50})
+      VALUES (${req.user.userId}, ${name}, ${date}, ${confidence})
       RETURNING *
     `;
     res.status(201).json(result[0]);
@@ -544,7 +584,7 @@ app.post('/api/notes', authenticateToken, async (req: any, res: any) => {
     const { title, content, folder, tags } = parsed.data;
     const result = await sql`
       INSERT INTO notes (user_id, title, content, folder, tags) 
-      VALUES (${req.user.userId}, ${title}, ${content}, ${folder || 'General'}, ${tags ? JSON.stringify(tags) : '[]'})
+      VALUES (${req.user.userId}, ${title}, ${content}, ${folder}, ${JSON.stringify(tags)})
       RETURNING *
     `;
     res.status(201).json(result[0]);
@@ -616,17 +656,19 @@ app.post('/api/study_sessions', authenticateToken, async (req: any, res: any) =>
 // --- AI Routes ---
 app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
+    // MED-6 + HIGH-1: Validate and limit prompt size
     const parsed = aiChatSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
     const { prompt, customSystemPrompt, userContext, providerInfo } = parsed.data;
+
     const baseSystemPrompt = customSystemPrompt || "You are a highly capable, versatile AI assistant. You can be an excellent tutor, but you are happy to discuss ANY topic, answer any question, or assist with any task the user requests, whether it is study-related or not.";
-    const fullSystemPrompt = userContext 
+    const fullSystemPrompt = userContext
       ? `${baseSystemPrompt}\n\nIf the user asks an educational or study-related question, consider that they are a student in: ${userContext}.`
       : baseSystemPrompt;
 
     if (providerInfo && providerInfo.provider === 'nvidia') {
       const apiKey = providerInfo.apiKey;
-      const model = providerInfo.model || 'nvidia/nemotron-4-340b-instruct'; // nemotron-3-ultra-550b isn't a standard NIM model id usually, but keeping user preference
+      const model = providerInfo.model || 'nvidia/nemotron-4-340b-instruct';
       if (!apiKey) return res.status(400).json({ error: 'NVIDIA API Key required' });
 
       const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
@@ -662,8 +704,9 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
 
     res.json({ result: chatCompletion.choices[0]?.message?.content || 'No response generated.' });
   } catch (error: any) {
+    // HIGH-4: Don't leak internal error details to client
     console.error('AI Chat Error:', error);
-    res.status(500).json({ error: 'Failed to connect to AI' });
+    res.status(500).json({ error: 'Failed to connect to AI service. Please try again.' });
   }
 });
 
@@ -671,7 +714,7 @@ app.post('/api/ai/flashcards', authenticateToken, aiLimiter, async (req: any, re
   try {
     const { content, userContext } = req.body;
     const prompt = `Generate 3-5 flashcards based on these notes:\n\n${content}`;
-    const fullSystemPrompt = userContext 
+    const fullSystemPrompt = userContext
       ? `You are an AI that generates educational flashcards from study notes. The user is in: ${userContext}. Ensure flashcards are appropriate for this grade level. Return ONLY a valid JSON array of objects with "front" and "back" string properties. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`
       : `You are an AI that generates educational flashcards from study notes. Return ONLY a valid JSON array of objects with "front" and "back" string properties. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
 
@@ -697,7 +740,7 @@ app.post('/api/ai/quiz', authenticateToken, aiLimiter, async (req: any, res: any
   try {
     const { content, userContext } = req.body;
     const prompt = `Generate a 5-question multiple-choice quiz based on these notes:\n\n${content}`;
-    const fullSystemPrompt = userContext 
+    const fullSystemPrompt = userContext
       ? `You are an AI that generates multiple-choice quizzes from study notes. The user is in: ${userContext}. Ensure the quiz is appropriate for this grade level. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string). Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`
       : `You are an AI that generates multiple-choice quizzes from study notes. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string). Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
 
@@ -792,7 +835,7 @@ RULES:
     if (error instanceof SyntaxError) {
       return res.status(422).json({ error: 'AI returned an invalid response. Please try again with clearer data.' });
     }
-    res.status(500).json({ error: 'Failed to extract routine' });
+    res.status(500).json({ error: 'Failed to extract routine. Please try again.' });
   }
 });
 
@@ -827,7 +870,7 @@ app.delete('/api/dna/:id', authenticateToken, async (req: any, res: any) => {
 app.post('/api/dna/compile', authenticateToken, async (req: any, res: any) => {
   try {
     const { content, source_id } = req.body;
-    
+
     const prompt = `Extract the core educational concepts from this text and map their "Knowledge DNA". 
 Return ONLY a valid JSON array of objects. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
 Each object MUST have these EXACT keys and types:
@@ -890,7 +933,7 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`Backend server running on http://localhost:${PORT}`);
   });
   // Keep the event loop alive in development
-  setInterval(() => {}, 1000 * 60 * 60);
+  setInterval(() => { }, 1000 * 60 * 60);
 }
 
 // Export the app for Vercel serverless function

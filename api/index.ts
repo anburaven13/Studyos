@@ -18,17 +18,23 @@ const groq = new Groq({
 
 const app = express();
 
+// Required when deploying to Vercel/proxies so rate limiters use the correct client IP
+app.set('trust proxy', 1);
+
 // CRIT-2: Strict JWT secret — no hardcoded fallbacks
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'studyos_dev_secret_change_me' : (() => { throw new Error('FATAL: JWT_SECRET environment variable is required in production'); })());
 
 // LOW-1: Security headers
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // CRIT-1: Strict CORS — no wildcard in production
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'https://studyos-snowy.vercel.app',
   'capacitor://localhost',
   'http://localhost',
+  'https://localhost',
   'ionic://localhost'
 ];
 
@@ -40,7 +46,7 @@ app.use(cors({
 }));
 
 // MED-4: Reduce default body size limit
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '5mb' }));
 
 // HIGH-2: Global rate limiter
 app.use(rateLimit({
@@ -145,7 +151,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       VALUES (${email}, ${passwordHash}) 
       RETURNING id, email
     `;
-
+    
     const user = result[0];
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ token, user: { id: user.id, email: user.email } });
@@ -165,7 +171,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     // HIGH-5: Fetch password hash separately, never SELECT *
     const pwRows = await sql`SELECT id, password_hash FROM users WHERE email = ${email}`;
     if (pwRows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
-
+    
     // LOW-3: Use async bcrypt
     const isMatch = await bcrypt.compare(password, pwRows[0].password_hash);
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
@@ -203,7 +209,7 @@ app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) =
       SET class_level = ${class_level}, board = ${board} 
       WHERE id = ${req.user.userId}
     `;
-
+    
     const updatedUsers = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${req.user.userId}`;
     res.json({ message: 'Onboarding completed', user: updatedUsers[0] });
   } catch (error) {
@@ -265,10 +271,10 @@ app.post('/api/exams/extract', express.json({ limit: '5mb' }), authenticateToken
     });
 
     const resultText = completion.choices[0]?.message?.content || '[]';
-
+    
     const startIndex = resultText.indexOf('[');
     const endIndex = resultText.lastIndexOf(']');
-
+    
     let jsonStr = '[]';
     if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
       jsonStr = resultText.substring(startIndex, endIndex + 1);
@@ -662,7 +668,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
     const { prompt, customSystemPrompt, userContext, providerInfo } = parsed.data;
 
     const baseSystemPrompt = customSystemPrompt || "You are a highly capable, versatile AI assistant. You can be an excellent tutor, but you are happy to discuss ANY topic, answer any question, or assist with any task the user requests, whether it is study-related or not.";
-    const fullSystemPrompt = userContext
+    const fullSystemPrompt = userContext 
       ? `${baseSystemPrompt}\n\nIf the user asks an educational or study-related question, consider that they are a student in: ${userContext}.`
       : baseSystemPrompt;
 
@@ -714,7 +720,7 @@ app.post('/api/ai/flashcards', authenticateToken, aiLimiter, async (req: any, re
   try {
     const { content, userContext } = req.body;
     const prompt = `Generate 3-5 flashcards based on these notes:\n\n${content}`;
-    const fullSystemPrompt = userContext
+    const fullSystemPrompt = userContext 
       ? `You are an AI that generates educational flashcards from study notes. The user is in: ${userContext}. Ensure flashcards are appropriate for this grade level. Return ONLY a valid JSON array of objects with "front" and "back" string properties. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`
       : `You are an AI that generates educational flashcards from study notes. Return ONLY a valid JSON array of objects with "front" and "back" string properties. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
 
@@ -740,7 +746,7 @@ app.post('/api/ai/quiz', authenticateToken, aiLimiter, async (req: any, res: any
   try {
     const { content, userContext } = req.body;
     const prompt = `Generate a 5-question multiple-choice quiz based on these notes:\n\n${content}`;
-    const fullSystemPrompt = userContext
+    const fullSystemPrompt = userContext 
       ? `You are an AI that generates multiple-choice quizzes from study notes. The user is in: ${userContext}. Ensure the quiz is appropriate for this grade level. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string). Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`
       : `You are an AI that generates multiple-choice quizzes from study notes. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string). Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
 
@@ -870,7 +876,7 @@ app.delete('/api/dna/:id', authenticateToken, async (req: any, res: any) => {
 app.post('/api/dna/compile', authenticateToken, async (req: any, res: any) => {
   try {
     const { content, source_id } = req.body;
-
+    
     const prompt = `Extract the core educational concepts from this text and map their "Knowledge DNA". 
 Return ONLY a valid JSON array of objects. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
 Each object MUST have these EXACT keys and types:
@@ -933,7 +939,7 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`Backend server running on http://localhost:${PORT}`);
   });
   // Keep the event loop alive in development
-  setInterval(() => { }, 1000 * 60 * 60);
+  setInterval(() => {}, 1000 * 60 * 60);
 }
 
 // Export the app for Vercel serverless function

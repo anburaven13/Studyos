@@ -220,7 +220,7 @@
 
 .btn-solid {
   background: linear-gradient(180deg, #ffffff 0%, #e7e7e7 48%, #cfcfcf 100%);
-  color: #111;
+  color: #111111 !important;
   border: 1px solid #fff;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.95);
 }

@@ -37,44 +37,16 @@ export default function Landing() {
     };
   }, []);
 
-  const toggleMenu = () => {
-    document.body.classList.toggle('menu-open');
-    const burger = document.querySelector('.burger-btn');
-    const isExpanded = burger?.getAttribute('aria-expanded') === 'true';
-    burger?.setAttribute('aria-expanded', String(!isExpanded));
-  };
-
-  const closeMenu = () => {
-    document.body.classList.remove('menu-open');
-    document.querySelector('.burger-btn')?.setAttribute('aria-expanded', 'false');
-  };
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMenu();
-    };
-    const handleResize = () => {
-      if (window.innerWidth >= 901) closeMenu();
-    };
-
-    window.addEventListener('keydown', handleEscape);
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('keydown', handleEscape);
-      window.removeEventListener('resize', handleResize);
-      closeMenu();
-    };
-  }, []);
 
   // Use a placeholder for the hero background until the user adds their Gemini image
   return (
     <div className="landing-container">
       <div className="grain"></div>
       <div className="hero-photo">
-        <img src="/hero-bg.png" alt="StudyOS Hero" className="hero-bg-img" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        <img src="/hero-bg.webp" alt="StudyOS Hero" className="hero-bg-img" />
       </div>
       <div className="page">
-        <div className="menu-backdrop" onClick={closeMenu}></div>
+
         
         <header className="header">
           <Link to="/" className="logo appear appear--scale" aria-label="StudyOS">
@@ -89,22 +61,13 @@ export default function Landing() {
             Study<span className="logo-suffix">OS</span>
           </Link>
 
-          <nav id="site-nav" aria-label="Primary">
-            <a href="#benefits" className="appear appear--scale" onClick={closeMenu}>Benefits</a>
-            <a href="#how-it-works" className="appear appear--soft" onClick={closeMenu}>How It Works</a>
-            <a href="#faqs" className="appear appear--scale" onClick={closeMenu}>FAQs</a>
-            <a href="#pricing" className="appear appear--soft" onClick={closeMenu}>Pricing</a>
-          </nav>
+
 
           <Link to="/login" className="btn btn-solid header-cta appear appear--scale">
             Start for Free
           </Link>
 
-          <button className="burger-btn" aria-controls="site-nav" aria-expanded="false" aria-label="Open menu" onClick={toggleMenu}>
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
+
         </header>
 
         <main className="hero" id="top">
@@ -129,9 +92,7 @@ export default function Landing() {
               <Link to="/login" className="btn btn-solid appear appear--btn">
                 Start for Free
               </Link>
-              <a href="#demo" className="btn btn-ghost hero-ghost appear appear--side">
-                See it in action
-              </a>
+
             </div>
           </div>
         </main>

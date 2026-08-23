@@ -67,10 +67,11 @@
   z-index: 0;
   overflow: hidden;
   opacity: 0;
+  animation: in-hero 1.5s ease 0.2s forwards;
 }
-.hero-photo.is-in {
-  opacity: 1;
-  transition: opacity 1.5s ease;
+@keyframes in-hero {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 .hero-bg-img {
   width: 100%;

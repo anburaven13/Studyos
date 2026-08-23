@@ -5,15 +5,15 @@ import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/AuthContext';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
-  { icon: BookOpen, label: 'Notes', to: '/notes' },
-  { icon: Dna, label: 'Knowledge DNA', to: '/genome' },
-  { icon: CheckSquare, label: 'Homework', to: '/homework' },
-  { icon: Calendar, label: 'Planner', to: '/planner' },
-  { icon: ListTodo, label: 'Routines', to: '/routines' },
-  { icon: GraduationCap, label: 'AI Tutor', to: '/tutor' },
-  { icon: FileText, label: 'Workspace', to: '/workspace' },
-  { icon: ClipboardList, label: 'Exam Hub', to: '/exams' },
+  { icon: LayoutDashboard, label: 'Dashboard', to: '/app' },
+  { icon: BookOpen, label: 'Notes', to: '/app/notes' },
+  { icon: Dna, label: 'Knowledge DNA', to: '/app/genome' },
+  { icon: CheckSquare, label: 'Homework', to: '/app/homework' },
+  { icon: Calendar, label: 'Planner', to: '/app/planner' },
+  { icon: ListTodo, label: 'Routines', to: '/app/routines' },
+  { icon: GraduationCap, label: 'AI Tutor', to: '/app/tutor' },
+  { icon: FileText, label: 'Workspace', to: '/app/workspace' },
+  { icon: ClipboardList, label: 'Exam Hub', to: '/app/exams' },
 ];
 
 type SidebarProps = {

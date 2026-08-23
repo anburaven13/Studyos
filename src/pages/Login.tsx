@@ -37,7 +37,7 @@ export default function Login() {
       if (!isLogin || !data.user.class_level) {
         navigate('/onboarding');
       } else {
-        navigate('/');
+        navigate('/app');
       }
     } catch (err: any) {
       setError(err.message);

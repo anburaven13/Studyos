@@ -11,12 +11,12 @@ export default function AppLayout() {
 
   useHotkeys('ctrl+n, meta+n', (e) => {
     e.preventDefault();
-    navigate('/notes');
+    navigate('/app/notes');
   });
 
   useHotkeys('ctrl+k, meta+k', (e) => {
     e.preventDefault();
-    navigate('/tutor');
+    navigate('/app/tutor');
   });
 
   return (

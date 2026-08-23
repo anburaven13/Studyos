@@ -31,7 +31,7 @@ export default function Onboarding() {
 
       if (res.ok) {
         updateUser({ class_level: selectedClass, board: selectedBoard });
-        navigate('/');
+        navigate('/app');
       }
     } catch (err) {
       console.error(err);

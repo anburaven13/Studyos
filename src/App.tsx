@@ -12,6 +12,7 @@ import Planner from './pages/Planner';
 import Tutor from './pages/Tutor';
 import ExamHub from './pages/ExamHub';
 import Workspace from './pages/Workspace';
+import Landing from './pages/Landing';
 import Routines from './pages/Routines';
 import Genome from './pages/Genome';
 
@@ -23,8 +24,9 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/onboarding" element={<Onboarding />} />
           
+          <Route path="/" element={<Landing />} />
           <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<AppLayout />}>
+            <Route path="/app" element={<AppLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="notes" element={<Notes />} />
               <Route path="homework" element={<Homework />} />

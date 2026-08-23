@@ -3,14 +3,28 @@ import { Play, Square } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export default function StudyTimer() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [isRunning, setIsRunning] = useState(() => {
+    return localStorage.getItem('study_timer_running') === 'true';
+  });
+  const [seconds, setSeconds] = useState(() => {
+    const savedStartTime = localStorage.getItem('study_timer_start_time');
+    if (savedStartTime && localStorage.getItem('study_timer_running') === 'true') {
+      return Math.floor((Date.now() - parseInt(savedStartTime, 10)) / 1000);
+    }
+    return 0;
+  });
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (isRunning) {
       interval = setInterval(() => {
-        setSeconds((s) => s + 1);
+        setSeconds(() => {
+          const savedStartTime = localStorage.getItem('study_timer_start_time');
+          if (savedStartTime) {
+            return Math.floor((Date.now() - parseInt(savedStartTime, 10)) / 1000);
+          }
+          return 0;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -20,6 +34,8 @@ export default function StudyTimer() {
     if (isRunning) {
       // Stop and save
       setIsRunning(false);
+      localStorage.removeItem('study_timer_running');
+      localStorage.removeItem('study_timer_start_time');
       const minutes = Math.floor(seconds / 60);
       
       // Reset immediately
@@ -47,6 +63,8 @@ export default function StudyTimer() {
     } else {
       // Start
       setIsRunning(true);
+      localStorage.setItem('study_timer_running', 'true');
+      localStorage.setItem('study_timer_start_time', Date.now().toString());
     }
   };
 

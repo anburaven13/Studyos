@@ -136,55 +136,7 @@ export default function Landing() {
           </div>
         </main>
 
-        <footer className="stats">
-          <div className="stat appear appear--stat">
-            <svg viewBox="0 0 24 24" width="20" height="20">
-              <rect x="3.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#left-pill)" />
-              <rect x="13.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#right-pill)" />
-              <rect x="9.2" y="10.9" width="5.6" height="2.2" rx="1.1" fill="#4a4a4a" />
-              <defs>
-                <linearGradient id="left-pill" x1="3" y1="2" x2="14" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.38" />
-                  <stop offset="100%" stopColor="#3a3a3a" stopOpacity="0.62" />
-                </linearGradient>
-                <linearGradient id="right-pill" x1="3" y1="2" x2="14" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#3a3a3a" stopOpacity="0.38" />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0.62" />
-                </linearGradient>
-              </defs>
-            </svg>
-            4.2M+ study notes analyzed
-          </div>
 
-          <div className="stat appear appear--stat">
-            <svg viewBox="0 0 24 24" width="20" height="20">
-              <rect x="2.4" y="2.4" width="19.2" height="19.2" rx="6.2" fill="#ffffff" />
-              <path d="M12 7.1v7.4 M8.15 12.35L12 16.2l3.85-3.85" stroke="#111" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
-            92% reduction in study time
-          </div>
-
-          <div className="stat appear appear--stat">
-            <svg viewBox="0 0 40 22" className="stat-icon-wide" width="38" height="21">
-              <circle cx="10.2" cy="11" r="9.2" fill="#2b2b2b" />
-              <ellipse cx="10.2" cy="12.1" rx="4.15" ry="3.7" fill="#f4f4f4" />
-              <circle cx="9.3" cy="11.5" r="0.7" fill="#1a1a1a" />
-              <circle cx="11.1" cy="11.5" r="0.7" fill="#1a1a1a" />
-              <polygon points="6,9 7,7 9,9" fill="#f4f4f4" />
-              <polygon points="14,9 13,7 11,9" fill="#f4f4f4" />
-              
-              <circle cx="20.2" cy="11" r="9.2" fill="#ffffff" />
-              <circle cx="18.5" cy="10" r="1.7" fill="#111" />
-              <circle cx="21.9" cy="10" r="1.7" fill="#111" />
-              <ellipse cx="20.2" cy="12" rx="1" ry="0.5" fill="#111" />
-              <path d="M18 14 Q20.2 16 22.4 14" stroke="#111" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-              
-              <circle cx="30.2" cy="11" r="9.2" fill="#f26b1d" />
-              <text x="30.2" y="15.1" fill="white" fontSize="12.5" fontWeight="700" fontFamily="Inter" textAnchor="middle">e</text>
-            </svg>
-            180+ student teams onboarded
-          </div>
-        </footer>
       </div>
     </div>
   );

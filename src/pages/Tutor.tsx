@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Settings, Paperclip, Loader2 } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Settings, Paperclip, Loader2, Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { simulateAiResponse, extractTextFromDocument } from '../lib/aiService';
@@ -110,6 +110,17 @@ export default function Tutor() {
           <p className="text-muted-foreground mt-1">Your personal 24/7 teaching assistant.</p>
         </div>
         <div className="flex-1" />
+        <button 
+          onClick={() => {
+            if (confirm('Are you sure you want to clear this conversation?')) {
+              setMessages([{ id: '1', role: 'ai', content: "Hello! I'm your StudyOS AI Tutor. I can help explain difficult concepts, solve math problems, or test your knowledge. What would you like to study today?" }]);
+            }
+          }}
+          className="p-2 border rounded-md hover:bg-muted text-muted-foreground transition-colors"
+          title="Clear Chat"
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
         <button 
           onClick={() => setShowSettings(!showSettings)}
           className="p-2 border rounded-md hover:bg-muted text-muted-foreground transition-colors"

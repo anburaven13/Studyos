@@ -716,6 +716,16 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       ? `${baseSystemPrompt}\n\nIf the user asks an educational or study-related question, consider that they are a student in: ${userContext}.`
       : baseSystemPrompt;
 
+    let apiMessages: any[] = [{ role: 'system', content: fullSystemPrompt }];
+    if (parsed.data.messages && parsed.data.messages.length > 0) {
+      apiMessages = apiMessages.concat(parsed.data.messages.map((m: any) => ({
+        role: m.role === 'ai' ? 'assistant' : m.role,
+        content: m.content || "",
+      })));
+    } else if (prompt) {
+      apiMessages.push({ role: 'user', content: prompt });
+    }
+
     if (providerInfo && providerInfo.provider === 'nvidia') {
       const apiKey = providerInfo.apiKey;
       const model = providerInfo.model || 'nvidia/nemotron-4-340b-instruct';
@@ -729,27 +739,13 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
         },
         body: JSON.stringify({
           model: model,
-          messages: [
-            { role: 'system', content: fullSystemPrompt },
-            { role: 'user', content: prompt }
-          ]
+          messages: apiMessages
         })
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || 'NVIDIA NIM API Error');
       return res.json({ result: data.choices[0]?.message?.content || 'No response generated.' });
-    }
-
-    // Default Groq
-    let apiMessages: any[] = [{ role: 'system', content: fullSystemPrompt }];
-    if (parsed.data.messages && parsed.data.messages.length > 0) {
-      apiMessages = apiMessages.concat(parsed.data.messages.map((m: any) => ({
-        role: m.role === 'ai' ? 'assistant' : m.role,
-        content: m.content || "",
-      })));
-    } else if (prompt) {
-      apiMessages.push({ role: 'user', content: prompt });
     }
 
     const tools = [
@@ -843,6 +839,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
         messages: apiMessages,
         model: 'openai/gpt-oss-120b',
         temperature: 0.5,
+        tools: tools as any,
       });
       responseMessage = chatCompletion.choices[0]?.message;
     }

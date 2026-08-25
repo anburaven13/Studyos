@@ -848,7 +848,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
   } catch (error: any) {
     // HIGH-4: Don't leak internal error details to client
     console.error('AI Chat Error:', error);
-    res.status(500).json({ error: 'Failed to connect to AI service. Please try again.' });
+    res.status(500).json({ error: `Failed to connect to AI service: ${error.message}` });
   }
 });
 

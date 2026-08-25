@@ -720,7 +720,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
     if (parsed.data.messages && parsed.data.messages.length > 0) {
       apiMessages = apiMessages.concat(parsed.data.messages.map((m: any) => ({
         role: m.role === 'ai' ? 'assistant' : m.role,
-        content: m.content || "",
+        content: (m.content || "").slice(0, 6000),
       })));
     } else if (prompt) {
       apiMessages.push({ role: 'user', content: prompt });

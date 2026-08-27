@@ -146,6 +146,16 @@ export const initializeDb = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
+
+  await sql`
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='routine_progress' AND column_name='notified_blocks') THEN
+            ALTER TABLE routine_progress ADD COLUMN notified_blocks JSONB DEFAULT '[]';
+        END IF;
+    END
+    $$;
+  `;
 };
 
 export default sql;

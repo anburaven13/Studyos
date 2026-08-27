@@ -1,16 +1,18 @@
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import sql, { initializeDb } from './db.js';
+import { auth as firebaseAuth } from './firebase-admin.js';
 import Groq from 'groq-sdk';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { GoogleGenAI } from '@google/genai';
+import { Resend } from 'resend';
 
 dotenv.config();
+
+const resend = new Resend(process.env.RESEND_API_KEY || 'MISSING_KEY');
 
 // --- Security: Strict API key loading ---
 const groq = new Groq({
@@ -26,8 +28,7 @@ const app = express();
 // Required when deploying to Vercel/proxies so rate limiters use the correct client IP
 app.set('trust proxy', 1);
 
-// CRIT-2: Strict JWT secret — no hardcoded fallbacks
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'studyos_dev_secret_change_me' : (() => { throw new Error('FATAL: JWT_SECRET environment variable is required in production'); })());
+// JWT handled by Firebase Admin SDK
 
 // LOW-1: Security headers
 app.use(helmet({
@@ -77,15 +78,7 @@ const aiLimiter = rateLimit({
 });
 
 // --- Zod Validation Schemas ---
-const registerSchema = z.object({
-  email: z.string().email('Invalid email format').max(255),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
-});
-
-const loginSchema = z.object({
-  email: z.string().email('Invalid email format').max(255),
-  password: z.string().min(1, 'Password is required').max(128),
-});
+// Auth schemas managed by Firebase
 
 const examSchema = z.object({
   name: z.string().min(1).max(255),
@@ -147,71 +140,34 @@ app.use(async (req, res, next) => {
 
 // --- Authentication Routes ---
 
-app.post('/api/auth/register', authLimiter, async (req, res) => {
-  try {
-    // HIGH-1 + HIGH-3: Validate input with zod (enforces email format + password policy)
-    const parsed = registerSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
-    const { email, password } = parsed.data;
-
-    const existingUsers = await sql`SELECT id FROM users WHERE email = ${email}`;
-    if (existingUsers.length > 0) return res.status(400).json({ error: 'Email already in use' });
-
-    // LOW-3: Use async bcrypt with higher rounds
-    const passwordHash = await bcrypt.hash(password, 12);
-    const result = await sql`
-      INSERT INTO users (email, password_hash) 
-      VALUES (${email}, ${passwordHash}) 
-      RETURNING id, email
-    `;
-    
-    const user = result[0];
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ token, user: { id: user.id, email: user.email } });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Server error during registration' });
-  }
-});
-
-app.post('/api/auth/login', authLimiter, async (req, res) => {
-  try {
-    // HIGH-1: Validate input
-    const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
-    const { email, password } = parsed.data;
-
-    // HIGH-5: Fetch password hash separately, never SELECT *
-    const pwRows = await sql`SELECT id, password_hash FROM users WHERE email = ${email}`;
-    if (pwRows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
-    
-    // LOW-3: Use async bcrypt
-    const isMatch = await bcrypt.compare(password, pwRows[0].password_hash);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
-
-    // Fetch user data without password hash
-    const users = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${pwRows[0].id}`;
-    const user = users[0];
-
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Server error during login' });
-  }
-});
-
-// Middleware to verify JWT
-const authenticateToken = (req: any, res: any, next: any) => {
+// Middleware to verify Firebase JWT and sync user with PostgreSQL
+const authenticateToken = async (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.sendStatus(401);
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
+  try {
+    const decodedToken = await firebaseAuth.verifyIdToken(token);
+    if (!decodedToken.email) return res.sendStatus(403);
+    
+    let users = await sql`SELECT id, email FROM users WHERE email = ${decodedToken.email}`;
+    
+    // Auto-create user in Postgres if they just signed up via Firebase
+    if (users.length === 0) {
+      const result = await sql`
+        INSERT INTO users (email, password_hash) 
+        VALUES (${decodedToken.email}, 'firebase_auth_managed') 
+        RETURNING id, email
+      `;
+      users = result;
+    }
+    
+    req.user = { userId: users[0].id, email: users[0].email };
     next();
-  });
+  } catch (error) {
+    console.error("Firebase auth error:", error);
+    return res.sendStatus(403);
+  }
 };
 
 app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) => {
@@ -557,7 +513,7 @@ app.post('/api/routines', authenticateToken, async (req: any, res: any) => {
 app.get('/api/routines/progress', authenticateToken, async (req: any, res: any) => {
   try {
     const { date } = req.query;
-    const progress = await sql`SELECT progress FROM routine_progress WHERE user_id = ${req.user.userId} AND date = ${date}`;
+    const progress = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${req.user.userId} AND date = ${date}`;
     if (progress.length > 0) {
       res.json(progress[0].progress);
     } else {
@@ -573,8 +529,8 @@ app.post('/api/routines/progress', authenticateToken, async (req: any, res: any)
   try {
     const { date, progress } = req.body;
     const result = await sql`
-      INSERT INTO routine_progress (user_id, date, progress) 
-      VALUES (${req.user.userId}, ${date}, ${progress})
+      INSERT INTO routine_progress (user_id, date, progress, notified_blocks) 
+      VALUES (${req.user.userId}, ${date}, ${progress}, '[]')
       ON CONFLICT (user_id, date) DO UPDATE SET progress = EXCLUDED.progress
       RETURNING progress
     `;
@@ -582,6 +538,90 @@ app.post('/api/routines/progress', authenticateToken, async (req: any, res: any)
   } catch (error) {
     console.error('Save routine progress error:', error);
     res.status(500).json({ error: 'Failed to save routine progress' });
+  }
+});
+
+// --- Automated Cron Emails (Missed Routines) ---
+app.get('/api/cron/routines', async (req: any, res: any) => {
+  // 1. Verify Vercel Cron Secret
+  const authHeader = req.headers['authorization'];
+  if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) {
+    return res.status(401).json({ error: 'Unauthorized cron request' });
+  }
+
+  try {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = days[new Date().getDay()];
+    // format YYYY-MM-DD
+    const todayDate = new Date().toLocaleDateString('en-CA');
+    const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    // Fetch all users and their routines
+    const routines = await sql\`
+      SELECT r.user_id, r.schedule, u.email 
+      FROM routines r
+      JOIN users u ON u.id = r.user_id
+    \`;
+
+    let emailsSent = 0;
+
+    for (const routine of routines) {
+      const todayBlocks = routine.schedule[todayName] || [];
+      
+      // Filter for blocks that have already ended
+      const missedBlocks = todayBlocks.filter((block: any) => {
+        return block.end < nowTime;
+      });
+
+      if (missedBlocks.length > 0) {
+        // Get the progress and notified blocks for this user for today
+        let userProgress = await sql\`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = \${routine.user_id} AND date = \${todayDate}\`;
+        
+        let progressMap = {};
+        let notifiedList: string[] = [];
+
+        if (userProgress.length > 0) {
+          progressMap = userProgress[0].progress || {};
+          notifiedList = userProgress[0].notified_blocks || [];
+        } else {
+          // Create empty progress row for today so we can track notifications
+          await sql\`
+            INSERT INTO routine_progress (user_id, date, progress, notified_blocks) 
+            VALUES (\${routine.user_id}, \${todayDate}, '{}', '[]')
+            ON CONFLICT DO NOTHING
+          \`;
+        }
+
+        for (const block of missedBlocks) {
+          // If block is not checked off AND we haven't notified them yet
+          if (!progressMap[block.id] && !notifiedList.includes(block.id)) {
+            // Send email
+            await resend.emails.send({
+              from: 'StudyOS <onboarding@resend.dev>',
+              to: routine.email,
+              subject: \`Missed Study Block: \${block.title}\`,
+              html: \`<p>Hi there,</p><p>Your scheduled study block <strong>\${block.title}</strong> (\${block.start} - \${block.end}) just finished, but you haven't checked it off in StudyOS.</p><p>Did you complete it? If so, don't forget to tick it off to keep your streak going!</p><p>- StudyOS Automation</p>\`
+            });
+            emailsSent++;
+            notifiedList.push(block.id);
+          }
+        }
+
+        // Update the notified_blocks array in the DB
+        if (notifiedList.length > 0) {
+          await sql\`
+            UPDATE routine_progress 
+            SET notified_blocks = \${JSON.stringify(notifiedList)}
+            WHERE user_id = \${routine.user_id} AND date = \${todayDate}
+          \`;
+        }
+      }
+    }
+
+    res.json({ success: true, emailsSent });
+  } catch (error: any) {
+    console.error('Cron Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

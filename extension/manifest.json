@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "StudyOS Extension",
+  "version": "1.0.0",
+  "description": "Study timer, distraction blocker, and smart YouTube filter.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "StudyOS Timer"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["youtube-filter.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

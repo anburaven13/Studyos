@@ -18,6 +18,7 @@ const Workspace = React.lazy(() => import('./pages/Workspace'));
 const Landing = React.lazy(() => import('./pages/Landing'));
 const Routines = React.lazy(() => import('./pages/Routines'));
 const Genome = React.lazy(() => import('./pages/Genome'));
+const Settings = React.lazy(() => import('./pages/Settings'));
 
 // A simple loading fallback
 const PageLoader = () => (
@@ -48,6 +49,7 @@ function App() {
                   <Route path="routines" element={<Routines />} />
                   <Route path="workspace" element={<Workspace />} />
                   <Route path="genome" element={<Genome />} />
+                  <Route path="settings" element={<Settings />} />
                 </Route>
               </Route>
             </Routes>

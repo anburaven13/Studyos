@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from './firebase';
 
 type User = {
   id: number;
@@ -10,41 +12,55 @@ type User = {
 type AuthContextType = {
   user: User | null;
   token: string | null;
-  login: (token: string, user: User) => void;
+  loading: boolean;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
+  syncUser: (token: string) => Promise<User>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (token) {
-      fetch('/api/user/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) setUser(data.user);
-        else logout();
-      })
-      .catch(() => logout());
-    }
-  }, [token]);
-
-  const login = (newToken: string, newUser: User) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-    setUser(newUser);
+  const syncUser = async (authToken: string): Promise<User> => {
+    const res = await fetch('/api/user/me', {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to sync user');
+    setUser(data.user);
+    return data.user;
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const authToken = await firebaseUser.getIdToken();
+          setToken(authToken);
+          await syncUser(authToken);
+        } catch (error) {
+          console.error('Error syncing user:', error);
+          setUser(null);
+          setToken(null);
+        }
+      } else {
+        setUser(null);
+        setToken(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const logout = async () => {
+    await firebaseSignOut(auth);
     setUser(null);
+    setToken(null);
   };
 
   const updateUser = (data: Partial<User>) => {
@@ -52,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, logout, updateUser, syncUser }}>
       {children}
     </AuthContext.Provider>
   );

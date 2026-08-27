@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,7 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { login } = useAuth();
+  const { syncUser } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -18,29 +20,30 @@ export default function Login() {
     setLoading(true);
     setError('');
 
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-    
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      let firebaseUser;
+      if (isLogin) {
+        const userCred = await signInWithEmailAndPassword(auth, email, password);
+        firebaseUser = userCred.user;
+      } else {
+        const userCred = await createUserWithEmailAndPassword(auth, email, password);
+        firebaseUser = userCred.user;
+      }
       
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.error || 'Authentication failed');
-      
-      login(data.token, data.user);
+      const token = await firebaseUser.getIdToken();
+      // Sync with our Postgres database
+      const pgUser = await syncUser(token);
       
       // If it's a new registration or missing class info, go to onboarding
-      if (!isLogin || !data.user.class_level) {
+      if (!isLogin || !pgUser.class_level) {
         navigate('/onboarding');
       } else {
         navigate('/app');
       }
     } catch (err: any) {
-      setError(err.message);
+      // Clean up Firebase error messages
+      const errorMessage = err.message.replace('Firebase: ', '').replace(/\(auth.*\)/, '').trim();
+      setError(errorMessage || 'Authentication failed');
     } finally {
       setLoading(false);
     }

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyOS Extension</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>StudyOS</h1>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-target="timer-view">Timer</button>
+      <button class="tab-btn" data-target="blocker-view">Blocker</button>
+    </div>
+
+    <div id="timer-view" class="view active">
+      <div class="timer-display" id="time-display">25:00</div>
+      
+      <div class="timer-controls">
+        <button id="start-btn" class="btn primary">Start Focus</button>
+        <button id="pause-btn" class="btn hidden">Pause</button>
+        <button id="reset-btn" class="btn outline">Reset</button>
+      </div>
+
+      <div class="timer-modes">
+        <button class="mode-btn active" data-mode="pomodoro">Pomodoro</button>
+        <button class="mode-btn" data-mode="shortBreak">Short Break</button>
+        <button class="mode-btn" data-mode="stopwatch">Stopwatch</button>
+      </div>
+    </div>
+
+    <div id="blocker-view" class="view">
+      <p class="description">Add URLs to block during focus sessions.</p>
+      
+      <div class="add-url">
+        <input type="text" id="url-input" placeholder="e.g. reddit.com">
+        <button id="add-url-btn" class="btn">Add</button>
+      </div>
+      
+      <ul id="blocked-list" class="blocked-list">
+        <!-- Dynamically populated -->
+      </ul>
+
+      <div class="youtube-filter">
+        <label>
+          <input type="checkbox" id="yt-filter-toggle" checked>
+          Enable YouTube Smart Filter
+        </label>
+        <p class="small-text">Hides non-educational content on YouTube.</p>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

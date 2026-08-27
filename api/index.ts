@@ -545,7 +545,7 @@ app.post('/api/routines/progress', authenticateToken, async (req: any, res: any)
 app.get('/api/cron/routines', async (req: any, res: any) => {
   // 1. Verify Vercel Cron Secret
   const authHeader = req.headers['authorization'];
-  if (authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) {
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized cron request' });
   }
 
@@ -557,11 +557,11 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
     const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
     // Fetch all users and their routines
-    const routines = await sql\`
+    const routines = await sql`
       SELECT r.user_id, r.schedule, u.email 
       FROM routines r
       JOIN users u ON u.id = r.user_id
-    \`;
+    `;
 
     let emailsSent = 0;
 
@@ -575,7 +575,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
 
       if (missedBlocks.length > 0) {
         // Get the progress and notified blocks for this user for today
-        let userProgress = await sql\`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = \${routine.user_id} AND date = \${todayDate}\`;
+        let userProgress = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
         
         let progressMap = {};
         let notifiedList: string[] = [];
@@ -585,11 +585,11 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
           notifiedList = userProgress[0].notified_blocks || [];
         } else {
           // Create empty progress row for today so we can track notifications
-          await sql\`
+          await sql`
             INSERT INTO routine_progress (user_id, date, progress, notified_blocks) 
-            VALUES (\${routine.user_id}, \${todayDate}, '{}', '[]')
+            VALUES (${routine.user_id}, ${todayDate}, '{}', '[]')
             ON CONFLICT DO NOTHING
-          \`;
+          `;
         }
 
         for (const block of missedBlocks) {
@@ -599,8 +599,8 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
             await resend.emails.send({
               from: 'StudyOS <onboarding@resend.dev>',
               to: routine.email,
-              subject: \`Missed Study Block: \${block.title}\`,
-              html: \`<p>Hi there,</p><p>Your scheduled study block <strong>\${block.title}</strong> (\${block.start} - \${block.end}) just finished, but you haven't checked it off in StudyOS.</p><p>Did you complete it? If so, don't forget to tick it off to keep your streak going!</p><p>- StudyOS Automation</p>\`
+              subject: `Missed Study Block: ${block.title}`,
+              html: `<p>Hi there,</p><p>Your scheduled study block <strong>${block.title}</strong> (${block.start} - ${block.end}) just finished, but you haven't checked it off in StudyOS.</p><p>Did you complete it? If so, don't forget to tick it off to keep your streak going!</p><p>- StudyOS Automation</p>`
             });
             emailsSent++;
             notifiedList.push(block.id);
@@ -609,11 +609,11 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
 
         // Update the notified_blocks array in the DB
         if (notifiedList.length > 0) {
-          await sql\`
+          await sql`
             UPDATE routine_progress 
-            SET notified_blocks = \${JSON.stringify(notifiedList)}
-            WHERE user_id = \${routine.user_id} AND date = \${todayDate}
-          \`;
+            SET notified_blocks = ${JSON.stringify(notifiedList)}
+            WHERE user_id = ${routine.user_id} AND date = ${todayDate}
+          `;
         }
       }
     }

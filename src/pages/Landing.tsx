@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import './Landing.css';
 
 export default function Landing() {
@@ -37,17 +38,27 @@ export default function Landing() {
     };
   }, []);
 
-
-  // Use a placeholder for the hero background until the user adds their Gemini image
   return (
     <div className="landing-container">
+      <Helmet>
+        <title>StudyOS | Operational AI Study Infrastructure & Homework Planner</title>
+        <meta name="description" content="StudyOS is the ultimate AI student planner and homework tracker. Train AI tutors on your study notes, generate flashcards, and organize your academic life." />
+        <link rel="canonical" href="https://studyos-snowy.vercel.app/" />
+        <meta property="og:title" content="StudyOS | Operational AI Study Infrastructure & Homework Planner" />
+        <meta property="og:description" content="StudyOS is the ultimate AI student planner and homework tracker. Train AI tutors on your study notes, generate flashcards, and organize your academic life." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://studyos-snowy.vercel.app/" />
+        <meta property="og:image" content="https://studyos-snowy.vercel.app/hero-bg.webp" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="StudyOS | Operational AI Study Infrastructure & Homework Planner" />
+        <meta name="twitter:description" content="Deploy adaptive AI tutors that learn, analyze, and scale your study workflow across all subjects." />
+      </Helmet>
+      
       <div className="grain"></div>
       <div className="hero-photo">
-        <img src="/hero-bg.webp" alt="StudyOS Hero" className="hero-bg-img" />
+        <img src="/hero-bg.webp" alt="StudyOS Hero Dashboard and Notes interface showing AI integration" className="hero-bg-img" />
       </div>
       <div className="page">
-
-        
         <header className="header">
           <Link to="/" className="logo appear appear--scale" aria-label="StudyOS">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -60,14 +71,9 @@ export default function Landing() {
             </svg>
             Study<span className="logo-suffix">OS</span>
           </Link>
-
-
-
           <Link to="/login" className="btn btn-solid header-cta appear appear--scale">
             Start for Free
           </Link>
-
-
         </header>
 
         <main className="hero" id="top">
@@ -85,19 +91,28 @@ export default function Landing() {
             </h1>
 
             <p className="lede appear appear--soft">
-              Deploy adaptive AI tutors that learn, analyze, and scale your study workflow across all subjects.
+              Deploy adaptive AI tutors that learn, analyze, and scale your study workflow across all subjects. Replace multiple disconnected apps with one unified, minimalist, and smart student planner.
             </p>
 
             <div className="hero-actions">
               <Link to="/login" className="btn btn-solid appear appear--btn">
                 Start for Free
               </Link>
-
             </div>
+            
+            {/* Added for SEO depth and context */}
+            <div className="sr-only">
+              <h2>Features</h2>
+              <ul>
+                <li>Smart Homework Tracker: Manage your assignments and deadlines efficiently.</li>
+                <li>AI Note-taking: Generate flashcards, summaries, and extract text from PDFs.</li>
+                <li>Exam Hub: Track revision progress with confidence meters and practice questions.</li>
+                <li>Unified Workspace: Everything in one place to reduce context-switching fatigue.</li>
+              </ul>
+            </div>
+            
           </div>
         </main>
-
-
       </div>
     </div>
   );

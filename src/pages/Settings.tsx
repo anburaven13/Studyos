@@ -1,6 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Settings as SettingsIcon, User, Bell, Download, Chrome, Puzzle, MonitorPlay } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Download, Globe, Puzzle, MonitorPlay } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
 export default function Settings() {
@@ -173,7 +173,7 @@ export default function Settings() {
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-2xl font-bold flex items-center gap-2 mb-2">
-                <Chrome className="w-6 h-6" />
+                <Globe className="w-6 h-6" />
                 StudyOS Blocker & Timer
               </h3>
               <p className="text-muted-foreground max-w-md">

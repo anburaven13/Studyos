@@ -4,18 +4,25 @@ import fs from 'fs';
 
 let serviceAccount;
 
+
+// Support both local JSON file and Vercel environment variables
+let credential;
 try {
-  const serviceAccountPath = path.resolve(__dirname, 'service-account.json');
-  if (fs.existsSync(serviceAccountPath)) {
-    serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-  }
+  const serviceAccount = require('./service-account.json');
+  credential = admin.credential.cert(serviceAccount);
 } catch (error) {
-  console.error("Failed to load service-account.json for Firebase Admin:", error);
+  // If JSON is missing (e.g. on Vercel), use environment variables
+  credential = admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    // Handle Vercel escaping newlines in private key
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  });
 }
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: serviceAccount ? admin.credential.cert(serviceAccount) : admin.credential.applicationDefault()
+    credential
   });
 }
 

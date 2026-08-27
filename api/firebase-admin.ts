@@ -11,19 +11,26 @@ try {
   const serviceAccount = require('./service-account.json');
   credential = admin.credential.cert(serviceAccount);
 } catch (error) {
-  // If JSON is missing (e.g. on Vercel), use environment variables
-  credential = admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // Handle Vercel escaping newlines in private key
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  });
+  try {
+    if (process.env.FIREBASE_PROJECT_ID) {
+      credential = admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      });
+    }
+  } catch (envError) {
+    console.error("Firebase Admin initialization failed: Missing or invalid environment variables");
+  }
 }
 
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential
-  });
+  if (credential) {
+    admin.initializeApp({ credential });
+  } else {
+    console.warn("WARNING: Firebase Admin initialized WITHOUT credentials. API calls will fail.");
+    admin.initializeApp();
+  }
 }
 
 export const auth = admin.auth();

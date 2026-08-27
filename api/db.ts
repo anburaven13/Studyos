@@ -4,8 +4,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Connect to Vercel Postgres / Neon DB
-// POSTGRES_URL is automatically provided by Vercel when connecting a Neon DB.
-const sql = neon(process.env.POSTGRES_URL || process.env.DATABASE_URL || '');
+let sql: any;
+try {
+  sql = neon(process.env.POSTGRES_URL || process.env.DATABASE_URL || '');
+} catch (e) {
+  console.error("Failed to initialize Neon DB at boot. Missing DATABASE_URL?", e);
+  sql = async () => { throw new Error("DATABASE_URL is missing in environment variables!"); };
+}
 
 // Note: In a serverless environment, we don't automatically run CREATE TABLE on every request.
 // We will assume the table is created by the user or via a migration script, but for this MVP,

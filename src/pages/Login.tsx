@@ -41,9 +41,22 @@ export default function Login() {
         navigate('/app');
       }
     } catch (err: any) {
-      // Clean up Firebase error messages
-      const errorMessage = err.message.replace('Firebase: ', '').replace(/\(auth.*\)/, '').trim();
-      setError(errorMessage || 'Authentication failed');
+      // Clean up Firebase error messages nicely
+      let errorMessage = err.message || 'Authentication failed';
+      if (errorMessage.includes('auth/invalid-credential')) {
+        errorMessage = 'Invalid email or password. If you had an account before today, please click "Sign up" to re-register it with our new secure login system.';
+      } else if (errorMessage.includes('auth/email-already-in-use')) {
+        errorMessage = 'An account with this email already exists. Please log in.';
+      } else if (errorMessage.includes('auth/user-not-found')) {
+        errorMessage = 'No account found with this email. Please sign up.';
+      } else if (errorMessage.includes('auth/wrong-password')) {
+        errorMessage = 'Incorrect password.';
+      } else {
+        errorMessage = errorMessage.replace('Firebase: ', '').replace(/\(auth.*\)/, '').trim();
+        if (errorMessage === 'Error .') errorMessage = 'Authentication failed. Please check your credentials.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

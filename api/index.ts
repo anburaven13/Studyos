@@ -682,22 +682,46 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
     for (const routine of routines) {
       const todayBlocks = routine.schedule[todayName] || [];
       
-      // Filter for blocks that have already ended
+      // Calculate yesterday's date & name for overnight blocks
+      const yesterday = new Date();
+      // Adjust yesterday using the timezone
+      const formatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' });
+      // To get yesterday safely, just subtract 24 hours
+      const yesterdayDateObj = new Date(new Date().toLocaleString('en-US', { timeZone }));
+      yesterdayDateObj.setDate(yesterdayDateObj.getDate() - 1);
+      const yesterdayName = yesterdayDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+      const yesterdayDateStr = yesterdayDateObj.toLocaleDateString('en-CA');
+      const yesterdayBlocks = routine.schedule[yesterdayName] || [];
+
+      // Filter for blocks that have already ended TODAY
       const missedBlocks = todayBlocks.filter((block: any) => {
+        // If overnight block (starts today, ends tomorrow), it hasn't ended today!
+        if (block.start > block.end) return false;
         return block.end < nowTime;
-      });
+      }).map((b: any) => ({ ...b, targetDate: todayDate })); // Tag with the date it belongs to
 
-      if (missedBlocks.length > 0) {
-        // Get the progress and notified blocks for this user for today
-        let userProgress = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+      // Filter for overnight blocks that started YESTERDAY and ended TODAY
+      const yesterdayMissedBlocks = yesterdayBlocks.filter((block: any) => {
+        // Only care about overnight blocks from yesterday
+        if (block.start > block.end) {
+          return block.end < nowTime;
+        }
+        return false;
+      }).map((b: any) => ({ ...b, targetDate: yesterdayDateStr })); // Belongs to yesterday's progress
+
+      const allMissedBlocks = [...missedBlocks, ...yesterdayMissedBlocks];
+
+      if (allMissedBlocks.length > 0) {
+        // Get the progress and notified blocks for this user for today and yesterday
+        const todayProgressRes = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+        const yesterdayProgressRes = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}`;
         
-        let progressMap = {};
-        let notifiedList: string[] = [];
+        let progressMapToday = todayProgressRes.length > 0 ? (todayProgressRes[0].progress || {}) : {};
+        let notifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].notified_blocks || []) : [];
+        let progressMapYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].progress || {}) : {};
+        let notifiedListYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].notified_blocks || []) : [];
 
-        if (userProgress.length > 0) {
-          progressMap = userProgress[0].progress || {};
-          notifiedList = userProgress[0].notified_blocks || [];
-        } else {
+        if (todayProgressRes.length === 0 && todayBlocks.length > 0) {
           // Create empty progress row for today so we can track notifications
           await sql`
             INSERT INTO routine_progress (user_id, date, progress, notified_blocks) 
@@ -706,7 +730,14 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
           `;
         }
 
-        for (const block of missedBlocks) {
+        let updatedToday = false;
+        let updatedYesterday = false;
+
+        for (const block of allMissedBlocks) {
+          const isYesterday = block.targetDate === yesterdayDateStr;
+          const progressMap = isYesterday ? progressMapYesterday : progressMapToday;
+          const notifiedList = isYesterday ? notifiedListYesterday : notifiedListToday;
+
           // If block is not checked off AND we haven't notified them yet
           if (!progressMap[block.id] && !notifiedList.includes(block.id)) {
             // Send email
@@ -741,15 +772,24 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
             });
             emailsSent++;
             notifiedList.push(block.id);
+            if (isYesterday) updatedYesterday = true;
+            else updatedToday = true;
           }
         }
 
         // Update the notified_blocks array in the DB
-        if (notifiedList.length > 0) {
+        if (updatedToday) {
           await sql`
             UPDATE routine_progress 
-            SET notified_blocks = ${JSON.stringify(notifiedList)}
+            SET notified_blocks = ${JSON.stringify(notifiedListToday)}
             WHERE user_id = ${routine.user_id} AND date = ${todayDate}
+          `;
+        }
+        if (updatedYesterday) {
+          await sql`
+            UPDATE routine_progress 
+            SET notified_blocks = ${JSON.stringify(notifiedListYesterday)}
+            WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}
           `;
         }
       }

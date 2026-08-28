@@ -41,15 +41,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const authToken = await firebaseUser.getIdToken();
           setToken(authToken);
+          localStorage.setItem('token', authToken); // FIX: components read from localStorage
           await syncUser(authToken);
         } catch (error) {
           console.error('Error syncing user:', error);
           setUser(null);
           setToken(null);
+          localStorage.removeItem('token');
         }
       } else {
         setUser(null);
         setToken(null);
+        localStorage.removeItem('token');
       }
       setLoading(false);
     });
@@ -61,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await firebaseSignOut(auth);
     setUser(null);
     setToken(null);
+    localStorage.removeItem('token');
   };
 
   const updateUser = (data: Partial<User>) => {

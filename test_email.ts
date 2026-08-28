@@ -27,22 +27,9 @@ async function test() {
 
     const info = await transporter.sendMail({
       from: `"StudyOS" <${process.env.GMAIL_USER_1}>`,
-      to: 'debg4171@gmail.com', // The user's personal email
-      subject: '🚀 StudyOS Nodemailer Test',
-      html: `
-        <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-          <h1 style="color: #4f46e5;">It Works!</h1>
-          <p>Nodemailer has successfully connected to your Gmail account and bypassed the Resend domain restrictions.</p>
-          <p>We've also attached a sample ICS Calendar invite to this email!</p>
-        </div>
-      `,
-      attachments: icsValue ? [
-        {
-          filename: 'studyos-block.ics',
-          content: icsValue,
-          contentType: 'text/calendar'
-        }
-      ] : []
+      to: 'debg4171@gmail.com',
+      subject: 'StudyOS Delivery Test',
+      text: 'Hello from StudyOS! If you see this, the basic email works.'
     });
     
     console.log('Success! Email sent. Message ID:', info.messageId);

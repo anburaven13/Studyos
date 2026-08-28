@@ -7,15 +7,18 @@ type User = {
   email: string;
   class_level?: string;
   board?: string;
+  is_2fa_enabled?: boolean;
 };
 
 type AuthContextType = {
   user: User | null;
   token: string | null;
   loading: boolean;
+  requires2FA: boolean;
+  setRequires2FA: (val: boolean) => void;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
-  syncUser: (token: string) => Promise<User>;
+  syncUser: (token: string) => Promise<{user: User, requires2FA: boolean}>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,15 +27,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requires2FA, setRequires2FA] = useState(false);
 
-  const syncUser = async (authToken: string): Promise<User> => {
+  const syncUser = async (authToken: string): Promise<{user: User, requires2FA: boolean}> => {
     const res = await fetch('/api/user/me', {
       headers: { 'Authorization': `Bearer ${authToken}` }
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to sync user');
-    setUser(data.user);
-    return data.user;
+    
+    setRequires2FA(data.requires2FA);
+    if (!data.requires2FA) {
+      setUser(data.user);
+    } else {
+      setUser(null);
+    }
+    return data;
   };
 
   useEffect(() => {
@@ -72,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, logout, updateUser, syncUser }}>
+    <AuthContext.Provider value={{ user, token, loading, requires2FA, setRequires2FA, logout, updateUser, syncUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,10 +1,63 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Settings as SettingsIcon, User, Bell, Download, Globe, Puzzle, MonitorPlay } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Download, Globe, Puzzle, MonitorPlay, Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
 export default function Settings() {
-  const { user, logout } = useAuth();
+  const { user, token, logout, syncUser } = useAuth();
+  
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [qrCode, setQrCode] = useState('');
+  const [secretText, setSecretText] = useState('');
+  const [verifyCode, setVerifyCode] = useState('');
+  const [loading2FA, setLoading2FA] = useState(false);
+  const [error2FA, setError2FA] = useState('');
+
+  const handleSetup2FA = async () => {
+    setLoading2FA(true);
+    setError2FA('');
+    setShow2FAModal(true);
+    
+    try {
+      const res = await fetch('/api/2fa/generate', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      setQrCode(data.qrCodeUrl);
+      setSecretText(data.secret);
+    } catch (err: any) {
+      setError2FA(err.message || 'Failed to generate 2FA secret');
+    } finally {
+      setLoading2FA(false);
+    }
+  };
+
+  const handleVerifySetup2FA = async () => {
+    setLoading2FA(true);
+    setError2FA('');
+    try {
+      const res = await fetch('/api/2fa/enable', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ token: verifyCode })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      await syncUser(token!); // Refresh user to get updated is_2fa_enabled
+      setShow2FAModal(false);
+    } catch (err: any) {
+      setError2FA(err.message || 'Invalid code');
+    } finally {
+      setLoading2FA(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto pb-12 space-y-8 animate-fade-in">
@@ -140,9 +193,18 @@ export default function Settings() {
                     <div className="text-sm text-muted-foreground">Secure your account with 2FA</div>
                   </div>
                 </div>
-                <button className="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors">
-                  Setup 2FA
-                </button>
+                <div className="flex items-center gap-4">
+                  {user?.is_2fa_enabled && (
+                    <span className="text-sm text-green-500 font-medium bg-green-500/10 px-2 py-1 rounded">Enabled</span>
+                  )}
+                  <button 
+                    onClick={handleSetup2FA}
+                    disabled={user?.is_2fa_enabled}
+                    className="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {user?.is_2fa_enabled ? 'Already Setup' : 'Setup 2FA'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -208,6 +270,68 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      {show2FAModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card border rounded-2xl p-6 shadow-lg max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-2">Set up Two-Factor Authentication</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Use Google Authenticator, Authy, or any standard TOTP app.
+            </p>
+
+            {error2FA && (
+              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg mb-4 border border-destructive/20">
+                {error2FA}
+              </div>
+            )}
+
+            {loading2FA && !qrCode ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex justify-center bg-white p-4 rounded-xl border">
+                  {qrCode && <img src={qrCode} alt="2FA QR Code" className="w-48 h-48" />}
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Or enter this code manually:</p>
+                  <code className="bg-muted px-2 py-1 rounded text-primary font-mono tracking-widest">{secretText}</code>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Verify Code</label>
+                  <input 
+                    type="text" 
+                    maxLength={6}
+                    value={verifyCode}
+                    onChange={e => setVerifyCode(e.target.value)}
+                    className="w-full bg-muted/50 border focus:border-primary rounded-lg px-4 py-2 outline-none tracking-widest text-center text-lg"
+                    placeholder="000000"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShow2FAModal(false)}
+                    className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-lg font-medium hover:opacity-90"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleVerifySetup2FA}
+                    disabled={loading2FA || verifyCode.length < 6}
+                    className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg font-medium flex items-center justify-center hover:opacity-90 disabled:opacity-50"
+                  >
+                    {loading2FA ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify & Enable'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

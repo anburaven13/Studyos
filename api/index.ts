@@ -9,6 +9,8 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { GoogleGenAI } from '@google/genai';
 import { Resend } from 'resend';
+import speakeasy from 'speakeasy';
+import QRCode from 'qrcode';
 
 dotenv.config();
 
@@ -140,7 +142,6 @@ app.use(async (req, res, next) => {
 
 // --- Authentication Routes ---
 
-// Middleware to verify Firebase JWT and sync user with PostgreSQL
 const authenticateToken = async (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -150,19 +151,33 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     const decodedToken = await firebaseAuth.verifyIdToken(token);
     if (!decodedToken.email) return res.sendStatus(403);
     
-    let users = await sql`SELECT id, email FROM users WHERE email = ${decodedToken.email}`;
+    let users = await sql`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
     
     // Auto-create user in Postgres if they just signed up via Firebase
     if (users.length === 0) {
       const result = await sql`
         INSERT INTO users (email, password_hash) 
         VALUES (${decodedToken.email}, 'firebase_auth_managed') 
-        RETURNING id, email
+        RETURNING id, email, is_2fa_enabled, verified_auth_times
       `;
       users = result;
     }
     
-    req.user = { userId: users[0].id, email: users[0].email };
+    const user = users[0];
+
+    // Check 2FA
+    if (user.is_2fa_enabled) {
+      // Allow 2fa/verify to bypass the block so they can actually submit the code
+      if (req.path !== '/api/2fa/verify' && req.path !== '/api/user/me') {
+        const authTime = decodedToken.auth_time;
+        const verifiedTimes = user.verified_auth_times || [];
+        if (!verifiedTimes.includes(authTime)) {
+          return res.status(403).json({ error: '2fa_required' });
+        }
+      }
+    }
+    
+    req.user = { userId: user.id, email: user.email, auth_time: decodedToken.auth_time, is_2fa_enabled: user.is_2fa_enabled, verified_auth_times: user.verified_auth_times || [] };
     next();
   } catch (error) {
     console.error("Firebase auth error:", error);
@@ -189,12 +204,110 @@ app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) =
 
 app.get('/api/user/me', authenticateToken, async (req: any, res: any) => {
   try {
-    const users = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${req.user.userId}`;
+    const users = await sql`SELECT id, email, class_level, board, is_2fa_enabled, verified_auth_times FROM users WHERE id = ${req.user.userId}`;
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
-    res.json({ user: users[0] });
+    
+    const user = users[0];
+    let requires2FA = false;
+    if (user.is_2fa_enabled) {
+      const verifiedTimes = user.verified_auth_times || [];
+      if (!verifiedTimes.includes(req.user.auth_time)) {
+        requires2FA = true;
+      }
+    }
+    
+    res.json({ user, requires2FA });
   } catch (error) {
     console.error('Fetch user error:', error);
     res.status(500).json({ error: 'Failed to fetch user data' });
+  }
+});
+
+// --- 2FA Endpoints ---
+app.post('/api/2fa/generate', authenticateToken, async (req: any, res: any) => {
+  try {
+    const secret = speakeasy.generateSecret({ name: `StudyOS (${req.user.email})` });
+    
+    // Store temporarily in DB
+    await sql`UPDATE users SET totp_secret = ${secret.base32} WHERE id = ${req.user.userId}`;
+    
+    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
+    res.json({ qrCodeUrl, secret: secret.base32 });
+  } catch (error) {
+    console.error('2FA generate error:', error);
+    res.status(500).json({ error: 'Failed to generate 2FA secret' });
+  }
+});
+
+app.post('/api/2fa/enable', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { token } = req.body;
+    const users = await sql`SELECT totp_secret FROM users WHERE id = ${req.user.userId}`;
+    const secret = users[0].totp_secret;
+    
+    if (!secret) return res.status(400).json({ error: '2FA secret not generated' });
+
+    const verified = speakeasy.totp.verify({
+      secret: secret,
+      encoding: 'base32',
+      token: token,
+      window: 1 // Allow +/- 30 seconds
+    });
+
+    if (verified) {
+      // Enable 2FA and trust this current device immediately
+      const verifiedTimes = req.user.verified_auth_times || [];
+      if (!verifiedTimes.includes(req.user.auth_time)) {
+        verifiedTimes.push(req.user.auth_time);
+      }
+      
+      await sql`
+        UPDATE users 
+        SET is_2fa_enabled = true, verified_auth_times = ${verifiedTimes}
+        WHERE id = ${req.user.userId}
+      `;
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: 'Invalid 2FA code' });
+    }
+  } catch (error) {
+    console.error('2FA enable error:', error);
+    res.status(500).json({ error: 'Failed to enable 2FA' });
+  }
+});
+
+app.post('/api/2fa/verify', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { token } = req.body;
+    const users = await sql`SELECT totp_secret, verified_auth_times FROM users WHERE id = ${req.user.userId}`;
+    const secret = users[0].totp_secret;
+    
+    if (!secret) return res.status(400).json({ error: '2FA is not enabled' });
+
+    const verified = speakeasy.totp.verify({
+      secret: secret,
+      encoding: 'base32',
+      token: token,
+      window: 1
+    });
+
+    if (verified) {
+      const verifiedTimes = users[0].verified_auth_times || [];
+      if (!verifiedTimes.includes(req.user.auth_time)) {
+        verifiedTimes.push(req.user.auth_time);
+        await sql`
+          UPDATE users 
+          SET verified_auth_times = ${verifiedTimes}
+          WHERE id = ${req.user.userId}
+        `;
+      }
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: 'Invalid 2FA code' });
+    }
+  } catch (error) {
+    console.error('2FA verify error:', error);
+    res.status(500).json({ error: 'Failed to verify 2FA code' });
   }
 });
 
@@ -550,11 +663,12 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
   }
 
   try {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const todayName = days[new Date().getDay()];
+    const timeZone = 'Asia/Kolkata'; // Force Indian Standard Time
+    const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone });
+    
     // format YYYY-MM-DD
-    const todayDate = new Date().toLocaleDateString('en-CA');
-    const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const todayDate = new Date().toLocaleDateString('en-CA', { timeZone });
+    const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone });
 
     // Fetch all users and their routines
     const routines = await sql`
@@ -600,7 +714,30 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
               from: 'StudyOS <onboarding@resend.dev>',
               to: routine.email,
               subject: `Missed Study Block: ${block.title}`,
-              html: `<p>Hi there,</p><p>Your scheduled study block <strong>${block.title}</strong> (${block.start} - ${block.end}) just finished, but you haven't checked it off in StudyOS.</p><p>Did you complete it? If so, don't forget to tick it off to keep your streak going!</p><p>- StudyOS Automation</p>`
+              html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                  <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                      <h1 style="color: #4f46e5; margin: 0; font-size: 24px;">StudyOS Reminder</h1>
+                    </div>
+                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
+                      Hi there,
+                    </p>
+                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
+                      Your scheduled study block <strong>${block.title}</strong> (${block.start} - ${block.end}) just finished, but you haven't checked it off in StudyOS.
+                    </p>
+                    <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+                      <p style="color: #1e3a8a; margin: 0; font-weight: 500;">
+                        Did you complete it? If so, don't forget to tick it off to keep your streak going!
+                      </p>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
+                      Keep up the great work!<br>
+                      — The StudyOS Automation Team
+                    </p>
+                  </div>
+                </div>
+              `
             });
             emailsSent++;
             notifiedList.push(block.id);

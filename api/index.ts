@@ -745,6 +745,15 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
           `;
         }
 
+        if (yesterdayProgressRes.length === 0 && yesterdayBlocks.length > 0) {
+          // Create empty progress row for yesterday so we can track notifications
+          await sql`
+            INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks) 
+            VALUES (${routine.user_id}, ${yesterdayDateStr}, '{}', '[]', '[]')
+            ON CONFLICT DO NOTHING
+          `;
+        }
+
         let updatedToday = false;
         let updatedYesterday = false;
 

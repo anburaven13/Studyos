@@ -8,13 +8,50 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { GoogleGenAI } from '@google/genai';
-import { Resend } from 'resend';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
+import nodemailer from 'nodemailer';
+import * as ics from 'ics';
 
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY || 'MISSING_KEY');
+const getTransporters = () => {
+  const transporters = [];
+  if (process.env.GMAIL_USER_1 && process.env.GMAIL_PASS_1) {
+    transporters.push(nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER_1, pass: process.env.GMAIL_PASS_1 } }));
+  }
+  if (process.env.GMAIL_USER_2 && process.env.GMAIL_PASS_2) {
+    transporters.push(nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER_2, pass: process.env.GMAIL_PASS_2 } }));
+  }
+  if (process.env.GMAIL_USER_3 && process.env.GMAIL_PASS_3) {
+    transporters.push(nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.GMAIL_USER_3, pass: process.env.GMAIL_PASS_3 } }));
+  }
+  return transporters;
+};
+
+const sendEmailWithFallback = async (mailOptions: nodemailer.SendMailOptions) => {
+  const transporters = getTransporters();
+  if (transporters.length === 0) {
+    console.error('No email transporters configured.');
+    return;
+  }
+  
+  let lastError = null;
+  for (let i = 0; i < transporters.length; i++) {
+    try {
+      mailOptions.from = `"StudyOS" <${process.env[`GMAIL_USER_${i+1}`]}>`;
+      await transporters[i].sendMail(mailOptions);
+      return true;
+    } catch (err) {
+      console.error(`Email failed with transporter ${i + 1}:`, err);
+      lastError = err;
+    }
+  }
+  
+  console.error('All email fallback transporters failed. Last error:', lastError);
+  // Don't throw to prevent crashing cron
+  return false;
+};
 
 // --- Security: Strict API key loading ---
 const groq = new Groq({
@@ -195,6 +232,34 @@ app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) =
     `;
     
     const updatedUsers = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${req.user.userId}`;
+    
+    // Send Welcome Email
+    try {
+      await sendEmailWithFallback({
+        to: updatedUsers[0].email,
+        subject: 'Welcome to StudyOS! 🚀',
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+              <h1 style="color: #4f46e5;">Welcome to StudyOS!</h1>
+              <p style="color: #374151; font-size: 16px;">
+                Hi there, we're thrilled to have you! StudyOS is designed to help you stay organized, focused, and stress-free.
+              </p>
+              <p style="color: #374151; font-size: 16px;">
+                <strong>Here is how to get started:</strong><br>
+                1. Set up your weekly routine.<br>
+                2. Add your upcoming exams.<br>
+                3. Start checking off your study blocks!
+              </p>
+              <p style="color: #6b7280; margin-top: 30px;">Happy studying,<br>The StudyOS Team</p>
+            </div>
+          </div>
+        `
+      });
+    } catch (e) {
+      console.error('Failed to send welcome email:', e);
+    }
+
     res.json({ message: 'Onboarding completed', user: updatedUsers[0] });
   } catch (error) {
     console.error('Onboarding error:', error);
@@ -683,6 +748,42 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
     for (const routine of routines) {
       const todayBlocks = routine.schedule[todayName] || [];
       
+      // --- Morning Agenda Logic ---
+      const currentHour = nowTimeDate.getHours();
+      if (currentHour >= 6 && currentHour < 8 && todayBlocks.length > 0) {
+        const todayProgressRes = await sql`SELECT agenda_sent FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+        const agendaSent = todayProgressRes.length > 0 ? todayProgressRes[0].agenda_sent : false;
+
+        if (!agendaSent) {
+          const blockListHtml = todayBlocks.map((b: any) => `<li style="margin-bottom: 8px;"><strong>${b.start} - ${b.end}</strong>: ${b.title}</li>`).join('');
+          await sendEmailWithFallback({
+            to: routine.email,
+            subject: `☀️ Your StudyOS Agenda for Today`,
+            html: `
+              <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                  <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! ☀️</h1>
+                  <p style="color: #374151; font-size: 16px;">Here is your study schedule for today:</p>
+                  <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">${blockListHtml}</ul>
+                  <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
+                </div>
+              </div>
+            `
+          });
+          
+          if (todayProgressRes.length === 0) {
+            await sql`
+              INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks, agenda_sent) 
+              VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]', true)
+              ON CONFLICT DO NOTHING
+            `;
+          } else {
+            await sql`UPDATE routine_progress SET agenda_sent = true WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+          }
+          emailsSent++;
+        }
+      }
+
       // Calculate yesterday's date & name for overnight blocks
       const yesterday = new Date();
       // Adjust yesterday using the timezone
@@ -765,8 +866,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
           // If block is not checked off AND we haven't notified them yet
           if (!progressMap[block.id] && !notifiedList.includes(block.id)) {
             // Send email
-            await resend.emails.send({
-              from: 'StudyOS <onboarding@resend.dev>',
+            await sendEmailWithFallback({
               to: routine.email,
               subject: `Missed Study Block: ${block.title}`,
               html: `
@@ -804,9 +904,21 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
         // Handle upcoming block emails
         for (const block of upcomingBlocks) {
           if (!upcomingNotifiedListToday.includes(block.id)) {
+            // Generate ICS file
+            const [sHour, sMin] = block.start.split(':').map(Number);
+            const [eHour, eMin] = block.end.split(':').map(Number);
+            const startArr: ics.DateArray = [nowTimeDate.getFullYear(), nowTimeDate.getMonth() + 1, nowTimeDate.getDate(), sHour, sMin];
+            const endArr: ics.DateArray = [nowTimeDate.getFullYear(), nowTimeDate.getMonth() + 1, nowTimeDate.getDate(), eHour, eMin];
+            
+            const { error: icsError, value: icsValue } = ics.createEvent({
+              title: block.title,
+              description: 'StudyOS Scheduled Block',
+              start: startArr,
+              end: endArr,
+            });
+
             // Send upcoming reminder email
-            await resend.emails.send({
-              from: 'StudyOS <onboarding@resend.dev>',
+            await sendEmailWithFallback({
               to: routine.email,
               subject: `Upcoming: ${block.title} starts soon!`,
               html: `
@@ -832,7 +944,14 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
                     </p>
                   </div>
              </div>
-              `
+              `,
+              attachments: icsValue ? [
+                {
+                  filename: 'studyos-block.ics',
+                  content: icsValue,
+                  contentType: 'text/calendar'
+                }
+              ] : []
             });
             emailsSent++;
             upcomingNotifiedListToday.push(block.id);

@@ -161,6 +161,9 @@ export const initializeDb = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='routine_progress' AND column_name='upcoming_notified_blocks') THEN
             ALTER TABLE routine_progress ADD COLUMN upcoming_notified_blocks JSONB DEFAULT '[]';
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='routine_progress' AND column_name='agenda_sent') THEN
+            ALTER TABLE routine_progress ADD COLUMN agenda_sent BOOLEAN DEFAULT false;
+        END IF;
     END
     $$;
   `;

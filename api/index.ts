@@ -1229,7 +1229,7 @@ app.post('/api/ai/gemini-vision', authenticateToken, aiLimiter, async (req: any,
     }
 
     const response = await geminiAi.models.generateContent({
-        model: 'gemini-2.5-pro',
+        model: 'gemini-3.7-flash',
         contents: [
             { role: 'user', parts: parts }
         ]

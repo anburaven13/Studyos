@@ -669,6 +669,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
     // format YYYY-MM-DD
     const todayDate = new Date().toLocaleDateString('en-CA', { timeZone });
     const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone });
+    const nowTimeDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
 
     // Fetch all users and their routines
     const routines = await sql`
@@ -700,6 +701,18 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
         return block.end < nowTime;
       }).map((b: any) => ({ ...b, targetDate: todayDate })); // Tag with the date it belongs to
 
+      // Filter for blocks starting within the next 10 minutes TODAY
+      const upcomingBlocks = todayBlocks.filter((block: any) => {
+        const [hours, minutes] = block.start.split(':').map(Number);
+        const blockStartDate = new Date(nowTimeDate);
+        blockStartDate.setHours(hours, minutes, 0, 0);
+        
+        const diffMs = blockStartDate.getTime() - nowTimeDate.getTime();
+        const diffMins = diffMs / 60000;
+        
+        return diffMins > 0 && diffMins <= 10;
+      });
+
       // Filter for overnight blocks that started YESTERDAY and ended TODAY
       const yesterdayMissedBlocks = yesterdayBlocks.filter((block: any) => {
         // Only care about overnight blocks from yesterday
@@ -711,21 +724,23 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
 
       const allMissedBlocks = [...missedBlocks, ...yesterdayMissedBlocks];
 
-      if (allMissedBlocks.length > 0) {
+      if (allMissedBlocks.length > 0 || upcomingBlocks.length > 0) {
         // Get the progress and notified blocks for this user for today and yesterday
-        const todayProgressRes = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
-        const yesterdayProgressRes = await sql`SELECT progress, notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}`;
+        const todayProgressRes = await sql`SELECT progress, notified_blocks, upcoming_notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+        const yesterdayProgressRes = await sql`SELECT progress, notified_blocks, upcoming_notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}`;
         
         let progressMapToday = todayProgressRes.length > 0 ? (todayProgressRes[0].progress || {}) : {};
         let notifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].notified_blocks || []) : [];
+        let upcomingNotifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].upcoming_notified_blocks || []) : [];
+        
         let progressMapYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].progress || {}) : {};
         let notifiedListYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].notified_blocks || []) : [];
 
         if (todayProgressRes.length === 0 && todayBlocks.length > 0) {
           // Create empty progress row for today so we can track notifications
           await sql`
-            INSERT INTO routine_progress (user_id, date, progress, notified_blocks) 
-            VALUES (${routine.user_id}, ${todayDate}, '{}', '[]')
+            INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks) 
+            VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]')
             ON CONFLICT DO NOTHING
           `;
         }
@@ -777,11 +792,51 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
           }
         }
 
-        // Update the notified_blocks array in the DB
+        // Handle upcoming block emails
+        for (const block of upcomingBlocks) {
+          if (!upcomingNotifiedListToday.includes(block.id)) {
+            // Send upcoming reminder email
+            await resend.emails.send({
+              from: 'StudyOS <onboarding@resend.dev>',
+              to: routine.email,
+              subject: `Upcoming: ${block.title} starts soon!`,
+              html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                  <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                      <h1 style="color: #4f46e5; margin: 0; font-size: 24px;">StudyOS Reminder</h1>
+                    </div>
+                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
+                      Hi there,
+                    </p>
+                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
+                      Get ready! Your study block <strong>${block.title}</strong> is starting soon (${block.start} - ${block.end}).
+                    </p>
+                    <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+                      <p style="color: #1e3a8a; margin: 0; font-weight: 500;">
+                        Grab some water, clear your desk, and get ready to crush this session!
+                      </p>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
+                      You got this!<br>
+                      — The StudyOS Automation Team
+                    </p>
+                  </div>
+             </div>
+              `
+            });
+            emailsSent++;
+            upcomingNotifiedListToday.push(block.id);
+            updatedToday = true;
+          }
+        }
+
+        // Update the DB arrays
         if (updatedToday) {
           await sql`
             UPDATE routine_progress 
-            SET notified_blocks = ${JSON.stringify(notifiedListToday)}
+            SET notified_blocks = ${JSON.stringify(notifiedListToday)},
+                upcoming_notified_blocks = ${JSON.stringify(upcomingNotifiedListToday)}
             WHERE user_id = ${routine.user_id} AND date = ${todayDate}
           `;
         }

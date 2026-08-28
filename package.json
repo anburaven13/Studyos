@@ -2,6 +2,9 @@
   "name": "studyos",
   "private": true,
   "version": "0.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "concurrently \"vite\" \"tsx watch api/index.ts\"",
     "build": "tsc -b && vite build",

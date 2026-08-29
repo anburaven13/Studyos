@@ -784,37 +784,57 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
       
       // --- Morning Agenda Logic ---
       const currentHour = nowTimeDate.getHours();
-      if (currentHour >= 6 && currentHour < 8 && todayBlocks.length > 0) {
+      if (currentHour >= 6 && currentHour < 8) {
         const todayProgressRes = await sql`SELECT agenda_sent FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
         const agendaSent = todayProgressRes.length > 0 ? todayProgressRes[0].agenda_sent : false;
 
         if (!agendaSent) {
-          const blockListHtml = todayBlocks.map((b: any) => `<li style="margin-bottom: 8px;"><strong>${b.start} - ${b.end}</strong>: ${b.title}</li>`).join('');
-          await sendEmailWithFallback({
-            to: routine.email,
-            subject: `☀️ Your StudyOS Agenda for Today`,
-            html: `
-              <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
-                <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                  <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! ☀️</h1>
-                  <p style="color: #374151; font-size: 16px;">Here is your study schedule for today:</p>
-                  <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">${blockListHtml}</ul>
-                  <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
+          const pendingHomework = await sql`SELECT title, subject, due_date FROM homework WHERE user_id = ${routine.user_id} AND completed = false AND due_date <= ${todayDate} ORDER BY due_date ASC`;
+
+          if (todayBlocks.length > 0 || pendingHomework.length > 0) {
+            let homeworkHtml = '';
+            if (pendingHomework.length > 0) {
+               homeworkHtml = `
+                 <h2 style="color: #4f46e5; margin-top: 24px; font-size: 18px;">📚 Pending Homework Reminder</h2>
+                 <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
+                   ${pendingHomework.map((h: any) => `<li style="margin-bottom: 8px;"><strong>${h.subject}:</strong> ${h.title} (Due: ${h.due_date})</li>`).join('')}
+                 </ul>
+               `;
+            }
+
+            const blockListHtml = todayBlocks.length > 0 
+                ? `<p style="color: #374151; font-size: 16px;">Here is your schedule for today:</p>
+                   <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
+                     ${todayBlocks.map((b: any) => `<li style="margin-bottom: 8px;"><strong>${b.start} - ${b.end}</strong>: ${b.title}</li>`).join('')}
+                   </ul>`
+                : `<p style="color: #374151; font-size: 16px;">You don't have a specific routine scheduled for today, but don't forget your pending tasks!</p>`;
+
+            await sendEmailWithFallback({
+              to: routine.email,
+              subject: `☀️ Your StudyOS Agenda for Today`,
+              html: `
+                <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                  <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! ☀️</h1>
+                    ${blockListHtml}
+                    ${homeworkHtml}
+                    <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
+                  </div>
                 </div>
-              </div>
-            `
-          });
-          
-          if (todayProgressRes.length === 0) {
-            await sql`
-              INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks, agenda_sent) 
-              VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]', true)
-              ON CONFLICT DO NOTHING
-            `;
-          } else {
-            await sql`UPDATE routine_progress SET agenda_sent = true WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+              `
+            });
+            
+            if (todayProgressRes.length === 0) {
+              await sql`
+                INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks, agenda_sent) 
+                VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]', true)
+                ON CONFLICT DO NOTHING
+              `;
+            } else {
+              await sql`UPDATE routine_progress SET agenda_sent = true WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+            }
+            emailsSent++;
           }
-          emailsSent++;
         }
       }
 
@@ -1594,10 +1614,12 @@ OUTPUT FORMAT (return ONLY this JSON, no markdown, no explanation):
 }
 
 RULES:
-- "type" must be one of: "school", "study", "class", "break", "sleep"
+- "type" should broadly categorize the activity. Use any relevant category: "school", "study", "class", "break", "sleep", "meal", "travel", "hobbies", "exercise", "chill", "chores", "work", "morning-routine", "night-routine", etc.
 - "start" and "end" must be in 24-hour HH:MM format
 - "id" should be a unique string per block (e.g. "mon-1", "tue-2")
 - Sort blocks by start time within each day
+- Keep durations realistic. For example, "Wake Up" should be a short event or bundled into a "morning-routine", don't make a single "Wake up" block last for 2 hours!
+- Break up large, vague chunks of time into logical, distinct blocks.
 - If data only describes some days, leave other days as empty arrays []
 - If the data describes a single day's pattern, replicate it across all weekdays unless context says otherwise
 - If the input is already valid routine JSON, clean it up and return it in the correct format`;

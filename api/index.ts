@@ -1289,6 +1289,42 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
             },
             required: ["name", "start_time", "end_time"]
           }
+        },
+        {
+          name: "get_homework",
+          description: "Gets the user's pending homework assignments",
+          parameters: {
+            type: "OBJECT",
+            properties: {}
+          }
+        },
+        {
+          name: "get_planner_events",
+          description: "Gets the user's upcoming planner events",
+          parameters: {
+            type: "OBJECT",
+            properties: {}
+          }
+        },
+        {
+          name: "get_recent_notes",
+          description: "Gets a list of the user's most recent notes",
+          parameters: {
+            type: "OBJECT",
+            properties: {}
+          }
+        },
+        {
+          name: "update_homework_status",
+          description: "Marks a homework assignment as completed or not completed",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              homework_id: { type: "NUMBER", description: "The ID of the homework to update" },
+              completed: { type: "BOOLEAN", description: "True if completed, false if not" }
+            },
+            required: ["homework_id", "completed"]
+          }
         }
       ]
     }];
@@ -1327,6 +1363,26 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
             await sql`INSERT INTO planner_events (user_id, name, start_time, end_time, source) VALUES (${req.user.userId}, ${args.name as string}, ${args.start_time as string}, ${args.end_time as string}, 'ai')`;
             functionResponses.push({
               functionResponse: { name: toolCall.name, response: { message: "Planner event added successfully." } }
+            });
+          } else if (toolCall.name === 'get_homework') {
+            const hw = await sql`SELECT id, title, subject, due_date FROM homework WHERE user_id = ${req.user.userId} AND completed = false ORDER BY due_date ASC LIMIT 10`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { homework: hw } }
+            });
+          } else if (toolCall.name === 'get_planner_events') {
+            const events = await sql`SELECT id, name, start_time, end_time FROM planner_events WHERE user_id = ${req.user.userId} ORDER BY start_time ASC LIMIT 10`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { events: events } }
+            });
+          } else if (toolCall.name === 'get_recent_notes') {
+            const notes = await sql`SELECT id, title, folder, created_at FROM notes WHERE user_id = ${req.user.userId} ORDER BY created_at DESC LIMIT 5`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { notes: notes } }
+            });
+          } else if (toolCall.name === 'update_homework_status') {
+            await sql`UPDATE homework SET completed = ${args.completed as boolean} WHERE id = ${args.homework_id as number} AND user_id = ${req.user.userId}`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Homework status updated." } }
             });
           } else {
             functionResponses.push({

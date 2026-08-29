@@ -216,11 +216,11 @@ app.post('/api/auth/reset-password', async (req: any, res: any) => {
 const authenticateToken = async (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.sendStatus(401);
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const decodedToken = await firebaseAuth.verifyIdToken(token);
-    if (!decodedToken.email) return res.sendStatus(403);
+    if (!decodedToken.email) return res.status(403).json({ error: 'Forbidden: No email in token' });
     
     let users = await sql`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
     
@@ -252,7 +252,7 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     next();
   } catch (error) {
     console.error("Firebase auth error:", error);
-    return res.sendStatus(403);
+    return res.status(403).json({ error: 'Forbidden: Auth verification failed or token expired' });
   }
 };
 

@@ -432,26 +432,28 @@ app.post('/api/exams/extract', express.json({ limit: '5mb' }), authenticateToken
       return res.status(400).json({ error: 'Image too large. Max 4MB.' });
     }
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Extract the exams list from this image. Return a JSON array of objects with "name" (string) and "date" in YYYY-MM-DD format (string). Do not include any markdown, just the raw JSON array.'
-            },
-            {
-              type: 'image_url',
-              image_url: { url: imageBase64 }
-            }
+    const base64DataMatch = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+    let inlineData;
+    if (base64DataMatch) {
+       inlineData = { mimeType: base64DataMatch[1], data: base64DataMatch[2] };
+    } else {
+       inlineData = { mimeType: 'image/jpeg', data: imageBase64 };
+    }
+
+    const response = await generateWithGeminiFallback({
+      contents: [
+        { 
+          role: 'user', 
+          parts: [
+            { text: 'Extract the exams list from this image. Return a JSON array of objects with "name" (string) and "date" in YYYY-MM-DD format (string). Do not include any markdown, just the raw JSON array.' },
+            { inlineData }
           ]
         }
       ],
-      model: 'qwen/qwen3.6-27b',
+      responseMimeType: "application/json"
     });
-
-    const resultText = completion.choices[0]?.message?.content || '[]';
+    
+    const resultText = response.text || '[]';
     
     const startIndex = resultText.indexOf('[');
     const endIndex = resultText.lastIndexOf(']');
@@ -1462,7 +1464,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       
       for (const toolCall of functionCalls) {
         try {
-          const args = toolCall.args;
+          const args: any = toolCall.args || {};
           if (toolCall.name === 'create_note') {
             await sql`INSERT INTO notes (user_id, title, content, folder, tags) VALUES (${req.user.userId}, ${args.title as string}, ${args.content as string}, ${(args.folder as string) || 'General'}, ${JSON.stringify(args.tags || [])})`;
             functionResponses.push({

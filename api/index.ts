@@ -1325,6 +1325,52 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
             },
             required: ["homework_id", "completed"]
           }
+        },
+        {
+          name: "get_exams",
+          description: "Gets the user's upcoming exams and their confidence levels",
+          parameters: { type: "OBJECT", properties: {} }
+        },
+        {
+          name: "create_exam",
+          description: "Adds a new exam to the user's tracker",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              name: { type: "STRING", description: "Name/subject of the exam" },
+              date: { type: "STRING", description: "YYYY-MM-DD format" },
+              confidence: { type: "NUMBER", description: "Confidence level from 0 to 100" }
+            },
+            required: ["name", "date"]
+          }
+        },
+        {
+          name: "update_exam_confidence",
+          description: "Updates the user's confidence level for an exam",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              exam_id: { type: "NUMBER", description: "The ID of the exam" },
+              confidence: { type: "NUMBER", description: "New confidence level from 0 to 100" }
+            },
+            required: ["exam_id", "confidence"]
+          }
+        },
+        {
+          name: "log_study_session",
+          description: "Logs a completed study session with its duration in minutes",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              duration_minutes: { type: "NUMBER", description: "Duration in minutes" }
+            },
+            required: ["duration_minutes"]
+          }
+        },
+        {
+          name: "get_weak_topics",
+          description: "Gets the user's weakest topics from their Knowledge DNA (topics with low mastery)",
+          parameters: { type: "OBJECT", properties: {} }
         }
       ]
     }];
@@ -1383,6 +1429,32 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
             await sql`UPDATE homework SET completed = ${args.completed as boolean} WHERE id = ${args.homework_id as number} AND user_id = ${req.user.userId}`;
             functionResponses.push({
               functionResponse: { name: toolCall.name, response: { message: "Homework status updated." } }
+            });
+          } else if (toolCall.name === 'get_exams') {
+            const exams = await sql`SELECT id, name, date, confidence FROM exams WHERE user_id = ${req.user.userId} ORDER BY date ASC LIMIT 10`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { exams: exams } }
+            });
+          } else if (toolCall.name === 'create_exam') {
+            await sql`INSERT INTO exams (user_id, name, date, confidence) VALUES (${req.user.userId}, ${args.name as string}, ${args.date as string}, ${args.confidence as number || 50})`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Exam created successfully." } }
+            });
+          } else if (toolCall.name === 'update_exam_confidence') {
+            await sql`UPDATE exams SET confidence = ${args.confidence as number} WHERE id = ${args.exam_id as number} AND user_id = ${req.user.userId}`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Exam confidence updated." } }
+            });
+          } else if (toolCall.name === 'log_study_session') {
+            const dateStr = new Date().toISOString().split('T')[0];
+            await sql`INSERT INTO study_sessions (user_id, duration_minutes, date) VALUES (${req.user.userId}, ${args.duration_minutes as number}, ${dateStr})`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Study session logged successfully." } }
+            });
+          } else if (toolCall.name === 'get_weak_topics') {
+            const weakTopics = await sql`SELECT id, concept_name, mastery_level FROM knowledge_dna WHERE user_id = ${req.user.userId} ORDER BY mastery_level ASC LIMIT 5`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { weak_topics: weakTopics } }
             });
           } else {
             functionResponses.push({

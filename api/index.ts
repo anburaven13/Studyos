@@ -754,6 +754,45 @@ app.post('/api/routines/progress', authenticateToken, async (req: any, res: any)
 });
 
 // --- Automated Cron Emails (Missed Routines) ---
+function generateICS(dateStr: string, blocks: any[], homework: any[]): string {
+  const dateStrNoDash = dateStr.replace(/-/g, '');
+  const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  let ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//StudyOS//Agenda//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH'
+  ];
+
+  for (const block of blocks) {
+    if (!block.start || !block.end) continue;
+    const localStart = dateStrNoDash + 'T' + block.start.replace(':', '') + '00';
+    const localEnd = dateStrNoDash + 'T' + block.end.replace(':', '') + '00';
+    
+    ics.push('BEGIN:VEVENT');
+    ics.push(`UID:${Math.random().toString(36).substring(2)}@studyos.app`);
+    ics.push(`DTSTAMP:${now}`);
+    ics.push(`DTSTART;TZID=Asia/Kolkata:${localStart}`);
+    ics.push(`DTEND;TZID=Asia/Kolkata:${localEnd}`);
+    ics.push(`SUMMARY:${block.title || block.type}`);
+    ics.push('END:VEVENT');
+  }
+
+  for (const hw of homework) {
+    const hwDate = (hw.due_date || dateStr).replace(/-/g, '');
+    ics.push('BEGIN:VEVENT');
+    ics.push(`UID:${Math.random().toString(36).substring(2)}@studyos.app`);
+    ics.push(`DTSTAMP:${now}`);
+    ics.push(`DTSTART;VALUE=DATE:${hwDate}`);
+    ics.push(`SUMMARY:Homework Due: ${hw.subject} - ${hw.title}`);
+    ics.push('END:VEVENT');
+  }
+
+  ics.push('END:VCALENDAR');
+  return ics.join('\r\n');
+}
+
 app.get('/api/cron/routines', async (req: any, res: any) => {
   // 1. Verify Vercel Cron Secret
   const authHeader = req.headers['authorization'];
@@ -809,6 +848,8 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
                    </ul>`
                 : `<p style="color: #374151; font-size: 16px;">You don't have a specific routine scheduled for today, but don't forget your pending tasks!</p>`;
 
+            const icsContent = generateICS(todayDate, todayBlocks, pendingHomework);
+
             await sendEmailWithFallback({
               to: routine.email,
               subject: `☀️ Your StudyOS Agenda for Today`,
@@ -821,7 +862,14 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
                     <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
                   </div>
                 </div>
-              `
+              `,
+              attachments: [
+                {
+                  filename: `StudyOS_Agenda_${todayDate}.ics`,
+                  content: icsContent,
+                  contentType: 'text/calendar'
+                }
+              ]
             });
             
             if (todayProgressRes.length === 0) {

@@ -3,7 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import sql, { initializeDb } from './db.js';
 import { auth as firebaseAuth } from './firebase-admin.js';
-import Groq from 'groq-sdk';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -54,9 +53,6 @@ const sendEmailWithFallback = async (mailOptions: nodemailer.SendMailOptions) =>
 };
 
 // --- Security: Strict API key loading ---
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || (() => { console.warn('WARNING: GROQ_API_KEY not set'); return 'MISSING_KEY'; })()
-});
 
 const geminiAi = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || (() => { console.warn('WARNING: GEMINI_API_KEY not set'); return 'MISSING_KEY'; })()
@@ -1112,6 +1108,38 @@ app.post('/api/study_sessions', authenticateToken, async (req: any, res: any) =>
 
 // --- AI Routes ---
 
+const modelsToTry = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+
+async function generateWithGeminiFallback(options: {
+  systemInstruction?: string,
+  contents: any[],
+  tools?: any[],
+  responseMimeType?: string
+}) {
+  let lastError;
+  for (const model of modelsToTry) {
+    try {
+      console.log(`Trying Gemini model: ${model}...`);
+      const response = await geminiAi.models.generateContent({
+        model: model,
+        contents: options.contents,
+        config: {
+          systemInstruction: options.systemInstruction,
+          tools: options.tools,
+          responseMimeType: options.responseMimeType,
+          temperature: 0.3
+        }
+      });
+      console.log(`Success with ${model}`);
+      return response;
+    } catch (err: any) {
+      console.warn(`Model ${model} failed:`, err.message || err);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("All Gemini fallback models failed.");
+}
+
 const aiVisionSchema = z.object({
   imageBase64: z.string().min(1)
 });
@@ -1122,29 +1150,30 @@ app.post('/api/ai/vision', authenticateToken, aiLimiter, async (req: any, res: a
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
     const { imageBase64 } = parsed.data;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Extract all text from this image precisely. If there are diagrams, describe them. Do not add conversational filler.' },
-            { type: 'image_url', image_url: { url: imageBase64 } }
-          ]
-        }
-      ],
-      model: 'qwen/qwen3.6-27b',
-      temperature: 0.2,
+    const response = await generateWithGeminiFallback({
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: 'Extract all text from this image precisely. If there are diagrams, describe them. Do not add conversational filler.' },
+          {
+            inlineData: {
+              data: imageBase64.replace(/^data:.*?;base64,/, ''),
+              mimeType: 'image/jpeg'
+            }
+          }
+        ]
+      }]
     });
 
-    res.json({ result: chatCompletion.choices[0]?.message?.content || 'No text extracted.' });
+    res.json({ result: response.text || 'No text extracted.' });
   } catch (error: any) {
     console.error('AI Vision Error:', error);
     res.status(500).json({ error: 'Failed to extract text from image.' });
   }
 });
+
 app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any) => {
   try {
-    // MED-6 + HIGH-1: Validate and limit prompt size
     const parsed = aiChatSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
     const { prompt, customSystemPrompt, userContext, providerInfo } = parsed.data;
@@ -1154,12 +1183,11 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       ? `${baseSystemPrompt}\n\nIf the user asks an educational or study-related question, consider that they are a student in: ${userContext}.`
       : baseSystemPrompt;
 
-    let apiMessages: any[] = [{ role: 'system', content: fullSystemPrompt }];
+    let apiMessages: any[] = [];
     if (parsed.data.messages && parsed.data.messages.length > 0) {
       const recentMessages = parsed.data.messages.slice(-20);
       let totalChars = 0;
-      const MAX_TOTAL_CHARS = 10000;
-      // Start from newest messages and keep them until we hit the char limit
+      const MAX_TOTAL_CHARS = 20000;
       const keptMessages = [];
       for (let i = recentMessages.length - 1; i >= 0; i--) {
         const m = recentMessages[i];
@@ -1168,27 +1196,35 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
           const remaining = MAX_TOTAL_CHARS - totalChars;
           if (remaining > 0) {
             keptMessages.unshift({
-              role: m.role === 'ai' ? 'assistant' : m.role,
-              content: contentStr.slice(-remaining)
+              role: m.role === 'ai' ? 'model' : 'user',
+              parts: [{ text: contentStr.slice(-remaining) }]
             });
           }
           break;
         }
         keptMessages.unshift({
-          role: m.role === 'ai' ? 'assistant' : m.role,
-          content: contentStr
+          role: m.role === 'ai' ? 'model' : 'user',
+          parts: [{ text: contentStr }]
         });
         totalChars += contentStr.length;
       }
-      apiMessages = apiMessages.concat(keptMessages);
+      apiMessages = keptMessages;
     } else if (prompt) {
-      apiMessages.push({ role: 'user', content: prompt });
+      apiMessages.push({ role: 'user', parts: [{ text: prompt }] });
     }
 
     if (providerInfo && providerInfo.provider === 'nvidia') {
       const apiKey = providerInfo.apiKey;
       const model = providerInfo.model || 'nvidia/nemotron-4-340b-instruct';
       if (!apiKey) return res.status(400).json({ error: 'NVIDIA API Key required' });
+      // Let's adapt Nvidia to generic OpenAI messages since it's hardcoded to integration API
+      const nVidiaMessages = [{role: 'system', content: fullSystemPrompt}];
+      for (const m of apiMessages) {
+          nVidiaMessages.push({
+             role: m.role === 'model' ? 'assistant' : 'user',
+             content: m.parts[0]?.text || ''
+          });
+      }
 
       const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
         method: 'POST',
@@ -1198,7 +1234,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
         },
         body: JSON.stringify({
           model: model,
-          messages: apiMessages
+          messages: nVidiaMessages
         })
       });
 
@@ -1207,105 +1243,112 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       return res.json({ result: data.choices[0]?.message?.content || 'No response generated.' });
     }
 
-    const tools = [
-      {
-        type: "function",
-        function: {
+    const tools = [{
+      functionDeclarations: [
+        {
           name: "create_note",
           description: "Creates a new study note in the user's workspace",
           parameters: {
-            type: "object",
+            type: "OBJECT",
             properties: {
-              title: { type: "string", description: "Title of the note" },
-              content: { type: "string", description: "Content of the note" },
-              folder: { type: "string", description: "Folder name" },
-              tags: { type: "array", items: { type: "string" } }
+              title: { type: "STRING", description: "Title of the note" },
+              content: { type: "STRING", description: "Content of the note" },
+              folder: { type: "STRING", description: "Folder name" },
+              tags: { type: "ARRAY", items: { type: "STRING" } }
             },
             required: ["title", "content"]
           }
-        }
-      },
-      {
-        type: "function",
-        function: {
+        },
+        {
           name: "create_homework",
           description: "Adds a homework assignment to the user's list",
           parameters: {
-            type: "object",
+            type: "OBJECT",
             properties: {
-              title: { type: "string", description: "Task description" },
-              subject: { type: "string", description: "Subject name" },
-              due_date: { type: "string", description: "YYYY-MM-DD format" }
+              title: { type: "STRING", description: "Task description" },
+              subject: { type: "STRING", description: "Subject name" },
+              due_date: { type: "STRING", description: "YYYY-MM-DD format" }
             },
             required: ["title", "subject", "due_date"]
           }
-        }
-      },
-      {
-        type: "function",
-        function: {
+        },
+        {
           name: "create_planner_event",
           description: "Adds an event to the user's planner/schedule",
           parameters: {
-            type: "object",
+            type: "OBJECT",
             properties: {
-              name: { type: "string", description: "Name of the event" },
-              start_time: { type: "string", description: "HH:MM format in 24hr time" },
-              end_time: { type: "string", description: "HH:MM format in 24hr time" }
+              name: { type: "STRING", description: "Name of the event" },
+              start_time: { type: "STRING", description: "HH:MM format in 24hr time" },
+              end_time: { type: "STRING", description: "HH:MM format in 24hr time" }
             },
             required: ["name", "start_time", "end_time"]
           }
         }
-      }
-    ];
+      ]
+    }];
 
-    let chatCompletion = await groq.chat.completions.create({
-      messages: apiMessages,
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.5,
-      tools: tools as any,
-      tool_choice: "auto",
+    let response = await generateWithGeminiFallback({
+      systemInstruction: fullSystemPrompt,
+      contents: apiMessages,
+      tools: tools
     });
 
-    let responseMessage = chatCompletion.choices[0]?.message;
+    let functionCalls = response.functionCalls;
 
-    if (responseMessage?.tool_calls) {
-      apiMessages.push(responseMessage);
+    if (functionCalls && functionCalls.length > 0) {
+      // Add the model's response to history
+      apiMessages.push({
+          role: "model",
+          parts: response.candidates?.[0]?.content?.parts || []
+      });
+
+      const functionResponses: any[] = [];
       
-      for (const toolCall of responseMessage.tool_calls) {
+      for (const toolCall of functionCalls) {
         try {
-          if (toolCall.function.name === 'create_note') {
-            const args = JSON.parse(toolCall.function.arguments);
-            await sql`INSERT INTO notes (user_id, title, content, folder, tags) VALUES (${req.user.userId}, ${args.title}, ${args.content}, ${args.folder || 'General'}, ${JSON.stringify(args.tags || [])})`;
-            apiMessages.push({ tool_call_id: toolCall.id, role: "tool", name: toolCall.function.name, content: "Note created successfully." });
-          } else if (toolCall.function.name === 'create_homework') {
-            const args = JSON.parse(toolCall.function.arguments);
-            await sql`INSERT INTO homework (user_id, title, subject, due_date) VALUES (${req.user.userId}, ${args.title}, ${args.subject}, ${args.due_date})`;
-            apiMessages.push({ tool_call_id: toolCall.id, role: "tool", name: toolCall.function.name, content: "Homework added successfully." });
-          } else if (toolCall.function.name === 'create_planner_event') {
-            const args = JSON.parse(toolCall.function.arguments);
-            await sql`INSERT INTO planner_events (user_id, name, start_time, end_time, source) VALUES (${req.user.userId}, ${args.name}, ${args.start_time}, ${args.end_time}, 'ai')`;
-            apiMessages.push({ tool_call_id: toolCall.id, role: "tool", name: toolCall.function.name, content: "Planner event added successfully." });
+          const args = toolCall.args;
+          if (toolCall.name === 'create_note') {
+            await sql`INSERT INTO notes (user_id, title, content, folder, tags) VALUES (${req.user.userId}, ${args.title as string}, ${args.content as string}, ${(args.folder as string) || 'General'}, ${JSON.stringify(args.tags || [])})`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Note created successfully." } }
+            });
+          } else if (toolCall.name === 'create_homework') {
+            await sql`INSERT INTO homework (user_id, title, subject, due_date) VALUES (${req.user.userId}, ${args.title as string}, ${args.subject as string}, ${args.due_date as string})`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Homework added successfully." } }
+            });
+          } else if (toolCall.name === 'create_planner_event') {
+            await sql`INSERT INTO planner_events (user_id, name, start_time, end_time, source) VALUES (${req.user.userId}, ${args.name as string}, ${args.start_time as string}, ${args.end_time as string}, 'ai')`;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { message: "Planner event added successfully." } }
+            });
           } else {
-            apiMessages.push({ tool_call_id: toolCall.id, role: "tool", name: toolCall.function.name, content: "Unknown tool." });
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { error: "Unknown tool." } }
+            });
           }
         } catch (e: any) {
-          apiMessages.push({ tool_call_id: toolCall.id, role: "tool", name: toolCall.function.name, content: "Error executing tool: " + e.message });
+          functionResponses.push({
+             functionResponse: { name: toolCall.name, response: { error: "Error executing tool: " + e.message } }
+          });
         }
       }
       
-      chatCompletion = await groq.chat.completions.create({
-        messages: apiMessages,
-        model: 'openai/gpt-oss-120b',
-        temperature: 0.5,
-        tools: tools as any,
+      apiMessages.push({
+          role: "user",
+          parts: functionResponses
       });
-      responseMessage = chatCompletion.choices[0]?.message;
+      
+      response = await generateWithGeminiFallback({
+        systemInstruction: fullSystemPrompt,
+        contents: apiMessages,
+        tools: tools
+      });
     }
 
-    res.json({ result: responseMessage?.content || 'No response generated.' });
+    res.json({ result: response.text || 'No response generated.' });
   } catch (error: any) {
-    // HIGH-4: Don't leak internal error details to client
     console.error('AI Chat Error:', error);
     res.status(500).json({ error: `Failed to connect to AI service: ${error.message}` });
   }
@@ -1316,23 +1359,19 @@ app.post('/api/ai/flashcards', authenticateToken, aiLimiter, async (req: any, re
     const { content, userContext } = req.body;
     const prompt = `Generate 3-5 flashcards based on these notes:\n\n${content}`;
     const fullSystemPrompt = userContext 
-      ? `You are an AI that generates educational flashcards from study notes. The user is in: ${userContext}. Ensure flashcards are appropriate for this grade level. Return ONLY a valid JSON array of objects with "front" and "back" string properties. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`
-      : `You are an AI that generates educational flashcards from study notes. Return ONLY a valid JSON array of objects with "front" and "back" string properties. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
+      ? `You are an AI that generates educational flashcards from study notes. The user is in: ${userContext}. Ensure flashcards are appropriate for this grade level. Return ONLY a valid JSON array of objects with "front" and "back" string properties.`
+      : `You are an AI that generates educational flashcards from study notes. Return ONLY a valid JSON array of objects with "front" and "back" string properties.`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: fullSystemPrompt },
-        { role: 'user', content: prompt }
-      ],
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.3,
+    const response = await generateWithGeminiFallback({
+      systemInstruction: fullSystemPrompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      responseMimeType: "application/json"
     });
 
-    const resultText = completion.choices[0]?.message?.content || '[]';
-    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
-    res.json(JSON.parse(jsonStr));
+    const resultText = response.text || '[]';
+    res.json(JSON.parse(resultText));
   } catch (error) {
-    console.error("Groq API Error during flashcard generation:", error);
+    console.error("Gemini API Error during flashcard generation:", error);
     res.status(500).json({ error: 'Failed to generate flashcards' });
   }
 });
@@ -1342,23 +1381,19 @@ app.post('/api/ai/quiz', authenticateToken, aiLimiter, async (req: any, res: any
     const { content, userContext } = req.body;
     const prompt = `Generate a 5-question multiple-choice quiz based on these notes:\n\n${content}`;
     const fullSystemPrompt = userContext 
-      ? `You are an AI that generates multiple-choice quizzes from study notes. The user is in: ${userContext}. Ensure the quiz is appropriate for this grade level. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string). Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`
-      : `You are an AI that generates multiple-choice quizzes from study notes. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string). Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
+      ? `You are an AI that generates multiple-choice quizzes from study notes. The user is in: ${userContext}. Ensure the quiz is appropriate for this grade level. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string).`
+      : `You are an AI that generates multiple-choice quizzes from study notes. Return ONLY a valid JSON array of objects. Each object must have: "question" (string), "options" (array of 4 strings), "correctAnswer" (string, exact match to one of the options), and "explanation" (string).`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: fullSystemPrompt },
-        { role: 'user', content: prompt }
-      ],
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.3,
+    const response = await generateWithGeminiFallback({
+      systemInstruction: fullSystemPrompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      responseMimeType: "application/json"
     });
 
-    const resultText = completion.choices[0]?.message?.content || '[]';
-    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
-    res.json(JSON.parse(jsonStr));
+    const resultText = response.text || '[]';
+    res.json(JSON.parse(resultText));
   } catch (error) {
-    console.error("Groq API Error during quiz generation:", error);
+    console.error("Gemini API Error during quiz generation:", error);
     res.status(500).json({ error: 'Failed to generate quiz' });
   }
 });
@@ -1385,33 +1420,11 @@ app.post('/api/ai/gemini-vision', authenticateToken, aiLimiter, async (req: any,
       }
     }
 
-    const modelsToTry = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
-    let response;
-    let lastError;
+    const response = await generateWithGeminiFallback({
+      contents: [{ role: 'user', parts: parts }]
+    });
 
-    for (const model of modelsToTry) {
-      try {
-        console.log(`Trying Gemini vision model: ${model}...`);
-        response = await geminiAi.models.generateContent({
-            model: model,
-            contents: [
-                { role: 'user', parts: parts }
-            ]
-        });
-        console.log(`Success with ${model}`);
-        break;
-      } catch (err: any) {
-        console.warn(`Model ${model} failed:`, err.message || err);
-        lastError = err;
-      }
-    }
-
-    if (!response) {
-      throw lastError || new Error("All Gemini fallback models failed.");
-    }
-
-    const result = response.text || 'No text could be extracted.';
-    res.json({ result });
+    res.json({ result: response.text || 'No text could be extracted.' });
   } catch (error: any) {
     console.error("Gemini Vision API Error:", error);
     res.status(500).json({ error: 'Failed to process document/image', details: error.message });
@@ -1454,32 +1467,23 @@ RULES:
 - Sort blocks by start time within each day
 - If data only describes some days, leave other days as empty arrays []
 - If the data describes a single day's pattern, replicate it across all weekdays unless context says otherwise
-- If the input is already valid routine JSON, clean it up and return it in the correct format
-- NEVER include any text outside the JSON object. Return ONLY the raw JSON.`;
+- If the input is already valid routine JSON, clean it up and return it in the correct format`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: rawData }
-      ],
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.1,
-      max_tokens: 4096,
+    const response = await generateWithGeminiFallback({
+      systemInstruction: systemPrompt,
+      contents: [{ role: 'user', parts: [{ text: rawData }] }],
+      responseMimeType: "application/json"
     });
 
-    const resultText = completion.choices[0]?.message?.content || '{}';
-    // Clean potential markdown fencing
-    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
-    const parsed = JSON.parse(jsonStr);
+    const resultText = response.text || '{}';
+    const parsed = JSON.parse(resultText);
 
-    // Validate structure: must have at least one day key
     const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const hasDays = validDays.some(day => Array.isArray(parsed[day]));
     if (!hasDays) {
       return res.status(422).json({ error: 'AI could not extract a valid routine from the provided data. Try providing more structured input.' });
     }
 
-    // Ensure all days exist
     const schedule: Record<string, any[]> = {};
     for (const day of validDays) {
       schedule[day] = Array.isArray(parsed[day]) ? parsed[day] : [];
@@ -1528,7 +1532,6 @@ app.post('/api/dna/compile', authenticateToken, async (req: any, res: any) => {
     const { content, source_id } = req.body;
     
     const prompt = `Extract the core educational concepts from this text and map their "Knowledge DNA". 
-Return ONLY a valid JSON array of objects. Do not include markdown formatting like \`\`\`json. Just the raw JSON array.
 Each object MUST have these EXACT keys and types:
 - "concept_name" (string)
 - "requires" (array of strings: names of prerequisite concepts)
@@ -1543,18 +1546,14 @@ Each object MUST have these EXACT keys and types:
 Text to compile:
 ${content}`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'You are a Cognitive Compiler. Extract genetic knowledge concepts purely as JSON.' },
-        { role: 'user', content: prompt }
-      ],
-      model: 'openai/gpt-oss-120b',
-      temperature: 0.1,
+    const response = await generateWithGeminiFallback({
+      systemInstruction: 'You are a Cognitive Compiler. Extract genetic knowledge concepts purely as JSON.',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      responseMimeType: "application/json"
     });
 
-    const resultText = completion.choices[0]?.message?.content || '[]';
-    const jsonStr = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
-    const concepts = JSON.parse(jsonStr);
+    const resultText = response.text || '[]';
+    const concepts = JSON.parse(resultText);
 
     const insertedConcepts = [];
     for (const concept of concepts) {
@@ -1577,10 +1576,11 @@ ${content}`;
 
     res.status(201).json(insertedConcepts);
   } catch (error) {
-    console.error("Groq DNA Compile Error:", error);
+    console.error("Gemini DNA Compile Error:", error);
     res.status(500).json({ error: 'Failed to compile Knowledge DNA' });
   }
 });
+
 
 // Do not listen on a port when running on Vercel
 if (process.env.NODE_ENV !== 'production') {

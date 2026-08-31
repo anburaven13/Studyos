@@ -52,6 +52,35 @@ export default function Landing() {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="StudyOS | The All-in-One AI Study Planner" />
         <meta name="twitter:description" content="Upload your notes and deadlines. StudyOS instantly acts as your 24/7 tutor." />
+        <script type="application/ld+json">
+          {`
+            {
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "StudyOS",
+              "applicationCategory": "EducationalApplication",
+              "operatingSystem": "Web",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              },
+              "description": "StudyOS is the ultimate AI student planner. Train AI tutors on your notes, generate flashcards, and organize your academic life.",
+              "url": "https://studyos-snowy.vercel.app/"
+            }
+          `}
+        </script>
+        <script type="application/ld+json">
+          {`
+            {
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "StudyOS",
+              "url": "https://studyos-snowy.vercel.app/",
+              "logo": "https://studyos-snowy.vercel.app/favicon.svg"
+            }
+          `}
+        </script>
       </Helmet>
       
       <div className="grain"></div>
@@ -117,6 +146,16 @@ export default function Landing() {
                 <h3>Knowledge DNA</h3>
                 <p>Track your revision progress with confidence meters to focus exactly on your weakest subjects.</p>
               </div>
+            </div>
+
+            <div className="seo-content appear appear--soft" style={{ marginTop: '4rem', textAlign: 'left', background: 'var(--surface-bg)', padding: '2rem', borderRadius: '1rem', border: '1px solid var(--border)' }}>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>Why Choose StudyOS for Your Exams?</h2>
+              <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                Managing your <strong>homework</strong> and <strong>deadlines</strong> shouldn't be the hardest part of school. When you upload your <strong>notes</strong>, textbook photos, or <strong>PDFs</strong>, StudyOS automatically organizes your entire academic schedule.
+              </p>
+              <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                Instead of spending hours creating flashcards manually, let your personalized <strong>AI tutor</strong> handle the heavy lifting. The built-in AI assistant has deep context on all your subjects, allowing you to <strong>study</strong> smarter, not harder. You can start for free today and effortlessly crush your upcoming board exams.
+              </p>
             </div>
             
           </div>

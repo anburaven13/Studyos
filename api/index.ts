@@ -151,7 +151,7 @@ const aiChatSchema = z.object({
   customSystemPrompt: z.string().optional(),
   userContext: z.string().optional(),
   providerInfo: z.object({
-    provider: z.enum(['groq', 'openrouter', 'nvidia']),
+    provider: z.enum(['groq', 'openrouter', 'nvidia', 'google']),
     apiKey: z.string().max(256).optional(),
     model: z.string().max(128).optional(),
   }).optional(),
@@ -1193,10 +1193,15 @@ async function generateWithGeminiFallback(options: {
   systemInstruction?: string,
   contents: any[],
   tools?: any[],
-  responseMimeType?: string
+  responseMimeType?: string,
+  specificModel?: string
 }) {
   let lastError;
-  for (const model of modelsToTry) {
+  const models = options.specificModel && options.specificModel !== 'auto' 
+    ? [options.specificModel] 
+    : modelsToTry;
+
+  for (const model of models) {
     try {
       console.log(`Trying Gemini model: ${model}...`);
       const response = await geminiAi.models.generateContent({
@@ -1550,7 +1555,8 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       response = await generateWithGeminiFallback({
         systemInstruction: fullSystemPrompt,
         contents: apiMessages,
-        tools: tools
+        tools: tools,
+        specificModel: providerInfo?.model
       });
     }
 

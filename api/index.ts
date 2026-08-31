@@ -1204,15 +1204,28 @@ async function generateWithGeminiFallback(options: {
   for (const model of models) {
     try {
       console.log(`Trying Gemini model: ${model}...`);
+      
+      const isGemma = model.toLowerCase().includes('gemma');
+      const config: any = {
+        temperature: 0.3
+      };
+      
+      let finalContents = [...options.contents];
+
+      if (!isGemma) {
+        config.systemInstruction = options.systemInstruction;
+        config.tools = options.tools;
+        config.responseMimeType = options.responseMimeType;
+      } else if (options.systemInstruction) {
+        // Gemma models often do not support systemInstruction or tools directly
+        finalContents.unshift({ role: 'model', parts: [{ text: 'Understood.' }] });
+        finalContents.unshift({ role: 'user', parts: [{ text: `[System Instruction: ${options.systemInstruction}]` }] });
+      }
+
       const response = await geminiAi.models.generateContent({
         model: model,
-        contents: options.contents,
-        config: {
-          systemInstruction: options.systemInstruction,
-          tools: options.tools,
-          responseMimeType: options.responseMimeType,
-          temperature: 0.3
-        }
+        contents: finalContents,
+        config: config
       });
       console.log(`Success with ${model}`);
       return response;

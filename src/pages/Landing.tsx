@@ -101,6 +101,10 @@ export default function Landing() {
             </svg>
             Study<span className="logo-suffix">OS</span>
           </Link>
+          <nav id="site-nav" className="hidden md:flex">
+            <Link to="/faq">FAQ</Link>
+            <Link to="/support">Support</Link>
+          </nav>
           <Link to="/login" className="btn btn-solid header-cta appear appear--scale">
             Start for Free
           </Link>

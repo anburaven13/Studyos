@@ -40,7 +40,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="landing-container">
+    <div className="dark landing-container min-h-screen relative overflow-hidden bg-background text-foreground">
       <Helmet>
         <title>StudyOS | The All-in-One AI Study Planner & Homework Tracker</title>
         <meta name="description" content="StudyOS is the ultimate AI student planner. Train AI tutors on your notes, generate flashcards, and organize your academic life." />

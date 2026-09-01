@@ -7,7 +7,7 @@ import './Landing.css'; // Reuse landing page header styles
 
 export default function Support() {
   return (
-    <div className="landing-container min-h-screen flex flex-col bg-background">
+    <div className="dark landing-container min-h-screen flex flex-col bg-background text-foreground">
       <Helmet>
         <title>Support | StudyOS</title>
         <meta name="description" content="Get help and support for StudyOS." />

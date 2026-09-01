@@ -32,7 +32,7 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <div className="landing-container min-h-screen flex flex-col bg-background">
+    <div className="dark landing-container min-h-screen flex flex-col bg-background text-foreground">
       <Helmet>
         <title>FAQ | StudyOS</title>
         <meta name="description" content="Frequently Asked Questions about StudyOS - The All-in-One AI Study Planner." />

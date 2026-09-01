@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import Footer from '../components/layout/Footer';
 import './Landing.css';
 
 export default function Landing() {
@@ -161,6 +162,7 @@ export default function Landing() {
           </div>
         </main>
       </div>
+      <Footer />
     </div>
   );
 }

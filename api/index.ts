@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import sql, { initializeDb } from './db.js';
 import { auth as firebaseAuth } from './firebase-admin.js';
 import helmet from 'helmet';
@@ -65,9 +66,30 @@ app.set('trust proxy', 1);
 
 // JWT handled by Firebase Admin SDK
 
-// LOW-1: Security headers
+// SEC-06: Hardened security headers
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://generativelanguage.googleapis.com", "https://*.neondb.tech"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hidePoweredBy: true,
 }));
 
 // CRIT-1: Strict CORS — no wildcard in production
@@ -159,6 +181,37 @@ const aiChatSchema = z.object({
   message: "Either prompt or messages must be provided"
 });
 
+// SEC-02: Validation for routine schedule
+const routineBlockSchema = z.object({
+  id: z.string().max(100).optional(),
+  title: z.string().min(1).max(255),
+  start: z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM format'),
+  end: z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM format'),
+  type: z.enum(['study', 'break', 'school', 'class', 'sleep', 'meal', 'exercise', 'other']).optional().default('study'),
+});
+
+const weeklyRoutineSchema = z.object({
+  Monday: z.array(routineBlockSchema).max(20).optional(),
+  Tuesday: z.array(routineBlockSchema).max(20).optional(),
+  Wednesday: z.array(routineBlockSchema).max(20).optional(),
+  Thursday: z.array(routineBlockSchema).max(20).optional(),
+  Friday: z.array(routineBlockSchema).max(20).optional(),
+  Saturday: z.array(routineBlockSchema).max(20).optional(),
+  Sunday: z.array(routineBlockSchema).max(20).optional(),
+}).strict();
+
+const noteUpdateSchema = z.object({
+  title: z.string().min(1).max(255),
+  content: z.string().max(100000).optional().default(''),
+  folder: z.string().max(255).optional().default('General'),
+  tags: z.array(z.string().max(50)).max(20).optional().default([]),
+});
+
+const studySessionSchema = z.object({
+  duration_minutes: z.number().int().min(1).max(1440),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
+});
+
 // Initialize DB schema on cold start
 let dbInitialized = false;
 app.use(async (req, res, next) => {
@@ -175,41 +228,41 @@ app.use(async (req, res, next) => {
 
 // --- Authentication Routes ---
 
-app.post('/api/auth/reset-password', async (req: any, res: any) => {
+app.post('/api/auth/reset-password', authLimiter, async (req: any, res: any) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    // Generate link via Firebase Admin
-    const link = await firebaseAuth.generatePasswordResetLink(email);
-
-    // Send via our robust nodemailer fallback
-    const success = await sendEmailWithFallback({
-      to: email,
-      subject: 'StudyOS - Reset Your Password',
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <h2 style="color: #4f46e5; margin-top: 0;">Reset Your Password</h2>
-            <p style="color: #374151; font-size: 16px;">Hello,</p>
-            <p style="color: #374151; font-size: 16px;">We received a request to reset your password for your StudyOS account.</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Reset Password</a>
+    // Always return the same response to prevent email enumeration
+    try {
+      const link = await firebaseAuth.generatePasswordResetLink(email);
+      await sendEmailWithFallback({
+        to: email,
+        subject: 'StudyOS - Reset Your Password',
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+              <h2 style="color: #4f46e5; margin-top: 0;">Reset Your Password</h2>
+              <p style="color: #374151; font-size: 16px;">Hello,</p>
+              <p style="color: #374151; font-size: 16px;">We received a request to reset your password for your StudyOS account.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Reset Password</a>
+              </div>
+              <p style="color: #374151; font-size: 14px;">If you didn't ask to reset your password, you can safely ignore this email.</p>
             </div>
-            <p style="color: #374151; font-size: 14px;">If you didn't ask to reset your password, you can safely ignore this email.</p>
           </div>
-        </div>
-      `
-    });
-
-    if (!success) {
-      return res.status(500).json({ error: 'Failed to send email' });
+        `
+      });
+    } catch (innerError) {
+      // Log but don't expose whether the email exists
+      console.error('Reset password inner error (may be invalid email):', innerError);
     }
 
-    res.json({ success: true });
+    // Always return success to prevent email enumeration
+    res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
   } catch (error: any) {
     console.error('Reset Password Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate reset link' });
+    res.status(500).json({ error: 'Password reset request failed. Please try again later.' });
   }
 });
 
@@ -323,7 +376,7 @@ app.get('/api/user/me', authenticateToken, async (req: any, res: any) => {
 });
 
 // --- 2FA Endpoints ---
-app.post('/api/2fa/generate', authenticateToken, async (req: any, res: any) => {
+app.post('/api/2fa/generate', authenticateToken, authLimiter, async (req: any, res: any) => {
   try {
     const secret = speakeasy.generateSecret({ name: `StudyOS (${req.user.email})` });
     
@@ -338,7 +391,7 @@ app.post('/api/2fa/generate', authenticateToken, async (req: any, res: any) => {
   }
 });
 
-app.post('/api/2fa/enable', authenticateToken, async (req: any, res: any) => {
+app.post('/api/2fa/enable', authenticateToken, authLimiter, async (req: any, res: any) => {
   try {
     const { token } = req.body;
     const users = await sql`SELECT totp_secret FROM users WHERE id = ${req.user.userId}`;
@@ -375,13 +428,18 @@ app.post('/api/2fa/enable', authenticateToken, async (req: any, res: any) => {
   }
 });
 
-app.post('/api/2fa/verify', authenticateToken, async (req: any, res: any) => {
+app.post('/api/2fa/verify', authenticateToken, authLimiter, async (req: any, res: any) => {
   try {
     const { token } = req.body;
-    const users = await sql`SELECT totp_secret, verified_auth_times FROM users WHERE id = ${req.user.userId}`;
+    const users = await sql`SELECT totp_secret, verified_auth_times, last_used_totp FROM users WHERE id = ${req.user.userId}`;
     const secret = users[0].totp_secret;
     
     if (!secret) return res.status(400).json({ error: '2FA is not enabled' });
+
+    // Anti-replay: reject if this exact token was already used
+    if (users[0].last_used_totp && users[0].last_used_totp === token) {
+      return res.status(400).json({ error: 'Invalid 2FA code' });
+    }
 
     const verified = speakeasy.totp.verify({
       secret: secret,
@@ -396,7 +454,7 @@ app.post('/api/2fa/verify', authenticateToken, async (req: any, res: any) => {
         verifiedTimes.push(req.user.auth_time);
         await sql`
           UPDATE users 
-          SET verified_auth_times = ${verifiedTimes}
+          SET verified_auth_times = ${verifiedTimes}, last_used_totp = ${token}
           WHERE id = ${req.user.userId}
         `;
       }
@@ -710,7 +768,9 @@ app.get('/api/routines', authenticateToken, async (req: any, res: any) => {
 
 app.post('/api/routines', authenticateToken, async (req: any, res: any) => {
   try {
-    const { schedule } = req.body;
+    const parsed = weeklyRoutineSchema.safeParse(req.body.schedule || req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const schedule = parsed.data;
     const result = await sql`
       INSERT INTO routines (user_id, schedule) 
       VALUES (${req.user.userId}, ${schedule})
@@ -796,9 +856,14 @@ function generateICS(dateStr: string, blocks: any[], homework: any[]): string {
 }
 
 app.get('/api/cron/routines', async (req: any, res: any) => {
-  // 1. Verify Vercel Cron Secret
+  // 1. Verify Vercel Cron Secret (constant-time comparison to prevent timing attacks)
   const authHeader = req.headers['authorization'];
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || !authHeader) {
+    return res.status(401).json({ error: 'Unauthorized cron request' });
+  }
+  const expected = `Bearer ${cronSecret}`;
+  if (authHeader.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
     return res.status(401).json({ error: 'Unauthorized cron request' });
   }
 
@@ -1085,7 +1150,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
     res.json({ success: true, emailsSent });
   } catch (error: any) {
     console.error('Cron Error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Cron job failed' });
   }
 });
 
@@ -1119,7 +1184,9 @@ app.post('/api/notes', authenticateToken, async (req: any, res: any) => {
 
 app.put('/api/notes/:id', authenticateToken, async (req: any, res: any) => {
   try {
-    const { title, content, folder, tags } = req.body;
+    const parsed = noteUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { title, content, folder, tags } = parsed.data;
     const result = await sql`
       UPDATE notes SET title = ${title}, content = ${content}, folder = ${folder || 'General'}, tags = ${tags ? JSON.stringify(tags) : '[]'}, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ${req.params.id} AND user_id = ${req.user.userId}
@@ -1163,7 +1230,9 @@ app.get('/api/analytics', authenticateToken, async (req: any, res: any) => {
 
 app.post('/api/study_sessions', authenticateToken, async (req: any, res: any) => {
   try {
-    const { duration_minutes, date } = req.body;
+    const parsed = studySessionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+    const { duration_minutes, date } = parsed.data;
     const result = await sql`
       INSERT INTO study_sessions (user_id, duration_minutes, date) 
       VALUES (${req.user.userId}, ${duration_minutes}, ${date})
@@ -1685,8 +1754,9 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
             });
           }
         } catch (e: any) {
+          console.error('Tool execution error:', e);
           functionResponses.push({
-             functionResponse: { name: toolCall.name, response: { error: "Error executing tool: " + e.message } }
+             functionResponse: { name: toolCall.name, response: { error: "Tool execution failed." } }
           });
         }
       }
@@ -1724,7 +1794,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
     res.json({ result: finalAnswer });
   } catch (error: any) {
     console.error('AI Chat Error:', error);
-    res.status(500).json({ error: `Failed to connect to AI service: ${error.message}` });
+    res.status(500).json({ error: 'Failed to connect to AI service. Please try again.' });
   }
 });
 

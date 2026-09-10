@@ -167,6 +167,17 @@ export const initializeDb = async () => {
     END
     $$;
   `;
+
+  // SEC-03: Add last_used_totp column for TOTP anti-replay protection
+  await sql`
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_used_totp') THEN
+            ALTER TABLE users ADD COLUMN last_used_totp TEXT;
+        END IF;
+    END
+    $$;
+  `;
 };
 
 export default sql;

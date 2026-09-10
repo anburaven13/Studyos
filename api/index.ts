@@ -1179,6 +1179,8 @@ app.post('/api/study_sessions', authenticateToken, async (req: any, res: any) =>
 // --- AI Routes ---
 
 const modelsToTry = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
   'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
@@ -1275,7 +1277,7 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
     const { prompt, customSystemPrompt, userContext, providerInfo } = parsed.data;
 
-    const baseSystemPrompt = customSystemPrompt || "You are a highly capable, versatile AI assistant. You can be an excellent tutor, but you are happy to discuss ANY topic, answer any question, or assist with any task the user requests, whether it is study-related or not.";
+    const baseSystemPrompt = customSystemPrompt || "You are StudyOS AI Tutor, a highly capable, versatile AI academic assistant and tutor. You can explain concepts, solve homework problems, test knowledge, and organize schedules. You have direct database tools to view and update the user's weekly routine schedule, exams, homework, planner events, study sessions, and notes. When the user asks you to split, rebalance, adjust, or edit their routine/timetable, ALWAYS use 'get_routine' to read their active routine and 'update_routine' to save the split/edited blocks directly into their database so the changes show immediately on the website.";
     const fullSystemPrompt = userContext 
       ? `${baseSystemPrompt}\n\nIf the user asks an educational or study-related question, consider that they are a student in: ${userContext}.`
       : baseSystemPrompt;
@@ -1305,9 +1307,41 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
         });
         totalChars += contentStr.length;
       }
-      apiMessages = keptMessages;
+      let sanitizedMessages: any[] = [];
+      let currentRole = null;
+      let currentParts: any[] = [];
+
+      for (const msg of keptMessages) {
+        if (!msg.parts[0]?.text || msg.parts[0].text.trim() === '') continue; // Skip empty messages
+
+        if (msg.role === currentRole) {
+          // Combine with previous message of the same role
+          currentParts[0].text += '\n\n' + msg.parts[0].text;
+        } else {
+          if (currentRole !== null) {
+            sanitizedMessages.push({ role: currentRole, parts: currentParts });
+          }
+          currentRole = msg.role;
+          currentParts = [{ text: msg.parts[0].text }];
+        }
+      }
+      
+      if (currentRole !== null) {
+        sanitizedMessages.push({ role: currentRole, parts: currentParts });
+      }
+
+      // Gemini requires the first message to be from 'user'
+      if (sanitizedMessages.length > 0 && sanitizedMessages[0].role !== 'user') {
+        sanitizedMessages.shift();
+      }
+
+      apiMessages = sanitizedMessages;
     } else if (prompt) {
       apiMessages.push({ role: 'user', parts: [{ text: prompt }] });
+    }
+
+    if (apiMessages.length === 0) {
+      apiMessages.push({ role: 'user', parts: [{ text: 'Hello' }] });
     }
 
     if (providerInfo && providerInfo.provider === 'nvidia') {
@@ -1463,6 +1497,30 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
           name: "get_weak_topics",
           description: "Gets the user's weakest topics from their Knowledge DNA (topics with low mastery)",
           parameters: { type: "OBJECT", properties: {} }
+        },
+        {
+          name: "get_routine",
+          description: "Gets the user's weekly routine schedule timetable containing all activities, school, tuitions, study sessions, breaks, and sleep blocks with their start and end times for all days or a specific day.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              day: { type: "STRING", description: "Optional day of the week ('Monday', 'Tuesday', etc.). If omitted, returns all 7 days." }
+            }
+          }
+        },
+        {
+          name: "update_routine",
+          description: "Updates, splits, or rebalances blocks in the user's weekly routine schedule directly in their database. Can update one or more days. Each day is an array of blocks: { id, title, start (HH:MM), end (HH:MM), type ('school'|'study'|'class'|'break'|'sleep') }.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              schedule: {
+                type: "OBJECT",
+                description: "Object where keys are days of the week ('Monday', 'Tuesday', ...) and values are arrays of blocks [{ id, title, start, end, type }]."
+              }
+            },
+            required: ["schedule"]
+          }
         }
       ]
     }];
@@ -1470,21 +1528,31 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
     let response = await generateWithGeminiFallback({
       systemInstruction: fullSystemPrompt,
       contents: apiMessages,
-      tools: tools
+      tools: tools,
+      specificModel: providerInfo?.model
     });
 
-    let functionCalls = response.functionCalls;
+    let maxToolTurns = 5;
+    let turnCount = 0;
+    const executedTools: string[] = [];
 
-    if (functionCalls && functionCalls.length > 0) {
+    while (turnCount < maxToolTurns) {
+      const functionCalls = response.functionCalls;
+      if (!functionCalls || functionCalls.length === 0) {
+        break;
+      }
+      turnCount++;
+
       // Add the model's response to history
       apiMessages.push({
-          role: "model",
-          parts: response.candidates?.[0]?.content?.parts || []
+        role: "model",
+        parts: response.candidates?.[0]?.content?.parts || []
       });
 
       const functionResponses: any[] = [];
       
       for (const toolCall of functionCalls) {
+        executedTools.push(toolCall.name);
         try {
           const args: any = toolCall.args || {};
           if (toolCall.name === 'create_note') {
@@ -1548,6 +1616,69 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
             functionResponses.push({
               functionResponse: { name: toolCall.name, response: { weak_topics: weakTopics } }
             });
+          } else if (toolCall.name === 'get_routine') {
+            const routines = await sql`SELECT schedule FROM routines WHERE user_id = ${req.user.userId}`;
+            const userSchedule = (routines.length > 0 && routines[0].schedule) ? routines[0].schedule : defaultRoutine;
+            const dayArg = args.day ? (args.day.charAt(0).toUpperCase() + args.day.slice(1).toLowerCase()) : null;
+            const resultData = dayArg && userSchedule[dayArg] ? { [dayArg]: userSchedule[dayArg] } : userSchedule;
+            functionResponses.push({
+              functionResponse: { name: toolCall.name, response: { routine: resultData } }
+            });
+          } else if (toolCall.name === 'update_routine') {
+            const currentRoutines = await sql`SELECT schedule FROM routines WHERE user_id = ${req.user.userId}`;
+            let baseSchedule = (currentRoutines.length > 0 && currentRoutines[0].schedule) ? { ...currentRoutines[0].schedule } : { ...defaultRoutine };
+
+            const incomingSchedule = args.schedule || {};
+            const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const updatedDays: string[] = [];
+
+            for (const key of Object.keys(incomingSchedule)) {
+              const capitalizedDay = key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+              if (validDays.includes(capitalizedDay) && Array.isArray(incomingSchedule[key])) {
+                baseSchedule[capitalizedDay] = incomingSchedule[key].map((block: any, idx: number) => ({
+                  id: block.id || `${capitalizedDay.toLowerCase().slice(0, 3)}-${Date.now()}-${idx}`,
+                  title: String(block.title || 'Study Block'),
+                  start: String(block.start || '00:00'),
+                  end: String(block.end || '00:00'),
+                  type: String(block.type || 'study')
+                })).sort((a: any, b: any) => a.start.localeCompare(b.start));
+                updatedDays.push(capitalizedDay);
+              }
+            }
+
+            await sql`
+              INSERT INTO routines (user_id, schedule) 
+              VALUES (${req.user.userId}, ${baseSchedule})
+              ON CONFLICT (user_id) DO UPDATE SET schedule = EXCLUDED.schedule
+            `;
+
+            // Automatically sync school/class blocks for today to planner
+            try {
+              const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+              const todayName = daysOfWeek[new Date().getDay()];
+              const todayBlocks = baseSchedule[todayName] || [];
+              const syncableBlocks = todayBlocks.filter((b: any) => b.type === 'school' || b.type === 'class');
+              await sql`DELETE FROM planner_events WHERE user_id = ${req.user.userId} AND source = 'routine'`;
+              for (const block of syncableBlocks) {
+                await sql`
+                  INSERT INTO planner_events (user_id, name, start_time, end_time, source) 
+                  VALUES (${req.user.userId}, ${block.title}, ${block.start}, ${block.end}, 'routine')
+                `;
+              }
+            } catch (syncErr) {
+              console.warn('Sync routine to planner warning:', syncErr);
+            }
+
+            functionResponses.push({
+              functionResponse: {
+                name: toolCall.name,
+                response: {
+                  success: true,
+                  message: "Routine updated in database and synced to planner successfully.",
+                  updatedDays
+                }
+              }
+            });
           } else {
             functionResponses.push({
               functionResponse: { name: toolCall.name, response: { error: "Unknown tool." } }
@@ -1573,7 +1704,24 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       });
     }
 
-    res.json({ result: response.text || 'No response generated.' });
+    let finalAnswer = response.text?.trim();
+    if (!finalAnswer && response.candidates?.[0]?.content?.parts) {
+      finalAnswer = response.candidates[0].content.parts
+        .filter((p: any) => p.text)
+        .map((p: any) => p.text)
+        .join('\n')
+        .trim();
+    }
+
+    if (!finalAnswer) {
+      if (executedTools.length > 0) {
+        finalAnswer = `I have completed your request (${executedTools.join(', ')}). Your routine and schedule have been updated in your account.`;
+      } else {
+        finalAnswer = 'How can I assist you with your studies or schedule today?';
+      }
+    }
+
+    res.json({ result: finalAnswer });
   } catch (error: any) {
     console.error('AI Chat Error:', error);
     res.status(500).json({ error: `Failed to connect to AI service: ${error.message}` });

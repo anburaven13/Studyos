@@ -179,6 +179,8 @@ export default function Tutor() {
                   className="w-full p-2.5 bg-background border rounded-lg text-sm outline-none focus:border-primary"
                 >
                   <option value="auto">Auto (Smart Fallback Selection)</option>
+                  <option value="gemini-3.8-flash">Gemini 3.8 Flash (High)</option>
+                  <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
                   <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
                   <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
                   <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>

@@ -20,7 +20,12 @@ export default function Tutor() {
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('tutor_messages');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try { 
+        const parsed = JSON.parse(saved); 
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch (e) {}
     }
     return [
       { id: '1', role: 'ai', content: "Hello! I'm your StudyOS AI Tutor. I can help explain difficult concepts, solve math problems, or test your knowledge. What would you like to study today?" }

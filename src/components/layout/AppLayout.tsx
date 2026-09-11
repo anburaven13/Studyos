@@ -20,12 +20,11 @@ export default function AppLayout() {
   });
 
   return (
-    <div className="min-h-screen bg-transparent text-foreground flex flex-col md:flex-row relative">
-      {/* Ambient Background Orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary/10 mix-blend-multiply dark:mix-blend-screen filter blur-[100px] opacity-70 animate-pulse" style={{ animationDuration: '10s' }} />
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[60%] rounded-full bg-blue-500/10 mix-blend-multiply dark:mix-blend-screen filter blur-[100px] opacity-70 animate-pulse" style={{ animationDuration: '14s', animationDelay: '2s' }} />
-        <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[50%] rounded-full bg-purple-500/10 mix-blend-multiply dark:mix-blend-screen filter blur-[100px] opacity-70 animate-pulse" style={{ animationDuration: '18s', animationDelay: '4s' }} />
+    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row relative selection:bg-primary/30">
+      {/* Productivity Workspace Background - Faint Dot Grid */}
+      <div className="fixed inset-0 pointer-events-none -z-10 bg-background">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+        <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary opacity-[0.03] blur-[100px]"></div>
       </div>
 
       <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />

@@ -2,8 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import Footer from '../components/layout/Footer';
-import { Sparkles, Brain, BookOpen, Target, Activity, ArrowRight, Zap, Shield, Smartphone } from 'lucide-react';
 import { TextEffect } from '@/components/motion-primitives/text-effect';
+import { motion } from 'motion/react';
+import { Sparkles, Brain, BookOpen, Target, Activity, ArrowRight, Zap, Shield, Smartphone } from 'lucide-react';
 
 export default function Landing() {
   return (
@@ -67,18 +68,16 @@ export default function Landing() {
 
             <h1 className="text-5xl sm:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 leading-[1.1] max-w-5xl">
               <span className="block text-slate-200">
-                <TextEffect preset="fade-in-blur" per="word">Crush your exams with</TextEffect>
+                <TextEffect preset="blur" per="word">Crush your exams with</TextEffect>
               </span>
               <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent pb-2">
-                <TextEffect preset="blur" per="char">an AI tutor that knows you.</TextEffect>
+                <TextEffect preset="fade-in-blur" per="char" delay={0.5}>an AI tutor that knows you.</TextEffect>
               </span>
             </h1>
 
-            <div className="text-lg sm:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
-              <TextEffect preset="fade" per="line">
-                Upload your messy notes, PDFs, and deadlines. StudyOS automatically organizes your homework, tracks your weak points, and acts as your personal 24/7 tutor.
-              </TextEffect>
-            </div>
+            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
+              Upload your messy notes, PDFs, and deadlines. StudyOS automatically organizes your homework, tracks your weak points, and acts as your personal 24/7 tutor.
+            </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
               <Link to="/login" className="w-full sm:w-auto px-8 py-4 bg-white text-black text-lg font-bold rounded-full hover:bg-slate-200 hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2">
@@ -100,7 +99,10 @@ export default function Landing() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Large Card */}
-                <div className="md:col-span-2 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors">
+                <motion.div 
+                  initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5, delay: 0.1 }}
+                  className="md:col-span-2 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors"
+                >
                   <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full group-hover:bg-blue-500/20 transition-colors pointer-events-none"></div>
                   <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-blue-400 mb-6 shadow-lg group-hover:scale-110 transition-transform">
                     <Target className="w-7 h-7" />
@@ -109,10 +111,13 @@ export default function Landing() {
                   <p className="text-slate-400 leading-relaxed max-w-md">
                     Never miss a deadline again. Manage your assignments, tests, and homework with an intelligent AI that automatically plans out your daily study schedule based on your syllabus.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Tall Card */}
-                <div className="md:col-span-1 md:row-span-2 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors flex flex-col">
+                <motion.div 
+                  initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5, delay: 0.2 }}
+                  className="md:col-span-1 md:row-span-2 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors flex flex-col"
+                >
                   <div className="absolute bottom-0 right-0 w-64 h-64 bg-purple-500/10 blur-[80px] rounded-full group-hover:bg-purple-500/20 transition-colors pointer-events-none"></div>
                   <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-purple-400 mb-6 shadow-lg group-hover:scale-110 transition-transform">
                     <Brain className="w-7 h-7" />
@@ -121,10 +126,13 @@ export default function Landing() {
                   <p className="text-slate-400 leading-relaxed flex-grow">
                     Imagine having a 24/7 tutor that has deep context on every single note, PDF, and class you've ever taken. Ask any question and get perfectly tailored explanations.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Normal Card 1 */}
-                <div className="md:col-span-1 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors">
+                <motion.div 
+                  initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5, delay: 0.3 }}
+                  className="md:col-span-1 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors"
+                >
                   <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-amber-400 mb-6 group-hover:scale-110 transition-transform">
                     <BookOpen className="w-6 h-6" />
                   </div>
@@ -132,10 +140,13 @@ export default function Landing() {
                   <p className="text-slate-400 leading-relaxed text-sm">
                     Instantly generate flashcards, summaries, and extract text from photos of your textbook or PDFs.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Normal Card 2 */}
-                <div className="md:col-span-1 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors">
+                <motion.div 
+                  initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.5, delay: 0.4 }}
+                  className="md:col-span-1 group relative overflow-hidden bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-colors"
+                >
                   <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-emerald-400 mb-6 group-hover:scale-110 transition-transform">
                     <Activity className="w-6 h-6" />
                   </div>
@@ -143,7 +154,7 @@ export default function Landing() {
                   <p className="text-slate-400 leading-relaxed text-sm">
                     Track your revision progress with confidence meters to focus exactly on your weakest subjects.
                   </p>
-                </div>
+                </motion.div>
               </div>
             </div>
 

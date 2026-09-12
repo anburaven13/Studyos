@@ -2,6 +2,7 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import Footer from '../components/layout/Footer';
+import { TextEffect } from '@/components/motion-primitives/text-effect';
 import { Mail, MessageCircle, HelpCircle, ArrowRight, Brain } from 'lucide-react';
 
 export default function Support() {
@@ -53,7 +54,7 @@ export default function Support() {
               <HelpCircle className="w-10 h-10 text-blue-400" />
             </div>
             <h1 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight text-white">
-              How can we help?
+              <TextEffect preset="blur" per="char">How can we help?</TextEffect>
             </h1>
             <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
               Our support team is here to assist you with any questions, issues, or feature requests you might have while using StudyOS.

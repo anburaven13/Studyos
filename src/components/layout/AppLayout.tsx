@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import StudyTimer from './StudyTimer';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Menu } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useHotkeys('ctrl+n, meta+n', (e) => {
@@ -29,7 +31,7 @@ export default function AppLayout() {
 
       <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
       
-      <main className="flex-1 md:ml-64 min-h-screen flex flex-col">
+      <main className="flex-1 md:ml-64 min-h-screen flex flex-col relative">
         {/* Mobile Header */}
         <div className="md:hidden h-16 border-b border-border/50 flex items-center px-4 justify-between bg-white/70 dark:bg-black/70 backdrop-blur-xl backdrop-saturate-150 z-30 sticky top-0 shadow-[0_4px_30px_rgba(0,0,0,0.05)]">
           <span className="font-bold tracking-tight flex items-center space-x-2">
@@ -41,7 +43,18 @@ export default function AppLayout() {
           </button>
         </div>
         
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 15, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, y: -15, filter: 'blur(4px)' }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="flex-1 flex flex-col w-full h-full"
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
       <StudyTimer />
     </div>

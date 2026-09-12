@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Calendar, Clock, FileText, CheckCircle2, BarChart2, Loader2 } from 'lucide-react';
+import { TextEffect } from '@/components/motion-primitives/text-effect';
 
 interface Task {
   id: string;
@@ -23,8 +24,14 @@ interface Stats {
   study_time: string;
 }
 
+import { motion } from 'motion/react';
+
 const StatCard = ({ icon: Icon, label, value, isLoading }: { icon: any, label: string, value: string | number, isLoading: boolean }) => (
-  <div className="border rounded-2xl p-6 shadow-sm bg-card flex items-center space-x-4 hover:-translate-y-1 hover:shadow-md transition-[transform,box-shadow] duration-300">
+  <motion.div 
+    whileHover={{ scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+    className="border rounded-2xl p-6 shadow-sm bg-card flex items-center space-x-4 transition-colors cursor-pointer"
+  >
     <div className="p-3 bg-primary/10 text-primary rounded-xl">
       <Icon className="w-6 h-6" aria-hidden="true" />
     </div>
@@ -36,7 +43,7 @@ const StatCard = ({ icon: Icon, label, value, isLoading }: { icon: any, label: s
         <p className="text-2xl font-bold truncate">{value}</p>
       )}
     </div>
-  </div>
+  </motion.div>
 );
 
 export default function Dashboard() {
@@ -95,8 +102,12 @@ export default function Dashboard() {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back. Here is your overview for today.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          <TextEffect preset="blur" per="char">Dashboard</TextEffect>
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          <TextEffect preset="fade" per="word" delay={0.3}>Welcome back. Here is your overview for today.</TextEffect>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8" aria-live="polite">

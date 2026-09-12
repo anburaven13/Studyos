@@ -68,10 +68,10 @@ export default function Landing() {
 
             <h1 className="text-5xl sm:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 leading-[1.1] max-w-5xl">
               <span className="block text-slate-200">
-                <TextEffect preset="blur" per="word">Crush your exams with</TextEffect>
+                <TextEffect as="span" preset="blur" per="word">Crush your exams with</TextEffect>
               </span>
               <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent pb-2">
-                <TextEffect preset="fade-in-blur" per="char" delay={0.5}>an AI tutor that knows you.</TextEffect>
+                <TextEffect as="span" preset="fade-in-blur" per="char" delay={0.5}>an AI tutor that knows you.</TextEffect>
               </span>
             </h1>
 

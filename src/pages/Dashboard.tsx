@@ -103,10 +103,10 @@ export default function Dashboard() {
     <div className="p-4 md:p-8 max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">
-          <TextEffect preset="blur" per="char">Dashboard</TextEffect>
+          <TextEffect as="span" preset="blur" per="char">Dashboard</TextEffect>
         </h1>
         <p className="text-muted-foreground mt-1">
-          <TextEffect preset="fade" per="word" delay={0.3}>Welcome back. Here is your overview for today.</TextEffect>
+          <TextEffect as="span" preset="fade" per="word" delay={0.3}>Welcome back. Here is your overview for today.</TextEffect>
         </p>
       </div>
 

@@ -265,7 +265,7 @@ export function TextEffect({
   };
 
   return (
-    <AnimatePresence mode='popLayout'>
+    <AnimatePresence>
       {trigger && (
         <MotionTag
           initial='hidden'

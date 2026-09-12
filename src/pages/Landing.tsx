@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import Footer from '../components/layout/Footer';
 import { Sparkles, Brain, BookOpen, Target, Activity, ArrowRight, Zap, Shield, Smartphone } from 'lucide-react';
+import { TextEffect } from '@/components/motion-primitives/text-effect';
 
 export default function Landing() {
   return (
@@ -65,15 +66,19 @@ export default function Landing() {
             </div>
 
             <h1 className="text-5xl sm:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 leading-[1.1] max-w-5xl">
-              <span className="block text-slate-200">Crush your exams with</span>
+              <span className="block text-slate-200">
+                <TextEffect preset="fade-in-blur" per="word">Crush your exams with</TextEffect>
+              </span>
               <span className="block bg-gradient-to-r from-blue-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent pb-2">
-                an AI tutor that knows you.
+                <TextEffect preset="blur" per="char">an AI tutor that knows you.</TextEffect>
               </span>
             </h1>
 
-            <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
-              Upload your messy notes, PDFs, and deadlines. StudyOS automatically organizes your homework, tracks your weak points, and acts as your personal 24/7 tutor.
-            </p>
+            <div className="text-lg sm:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
+              <TextEffect preset="fade" per="line">
+                Upload your messy notes, PDFs, and deadlines. StudyOS automatically organizes your homework, tracks your weak points, and acts as your personal 24/7 tutor.
+              </TextEffect>
+            </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
               <Link to="/login" className="w-full sm:w-auto px-8 py-4 bg-white text-black text-lg font-bold rounded-full hover:bg-slate-200 hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2">

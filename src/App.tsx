@@ -21,7 +21,6 @@ const Support = React.lazy(() => import('./pages/Support'));
 const Routines = React.lazy(() => import('./pages/Routines'));
 const Genome = React.lazy(() => import('./pages/Genome'));
 const Settings = React.lazy(() => import('./pages/Settings'));
-const PletyLanding = React.lazy(() => import('./pages/PletyLanding'));
 
 // A simple loading fallback
 const PageLoader = () => (
@@ -39,7 +38,6 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/plety" element={<PletyLanding />} />
               
               <Route path="/" element={<Landing />} />
               <Route path="/faq" element={<FAQ />} />

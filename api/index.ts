@@ -277,8 +277,9 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     
     let userDbIndex = -1;
     let existingUser = null;
+    let healthyDbIndices: number[] = [];
     
-    // Find which DB the user is already on
+    // Find which DB the user is already on and track healthy DBs
     for (let i = 0; i < dbConnections.length; i++) {
       try {
         const users = await dbConnections[i]`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
@@ -287,20 +288,20 @@ const authenticateToken = async (req: any, res: any, next: any) => {
           userDbIndex = i;
           break;
         }
+        healthyDbIndices.push(i); // If the query succeeds, this DB is healthy
       } catch (e) {
         console.error('Error checking DB shard', i, e);
       }
     }
 
-    // If new user, assign to a DB based on consistent hashing
+    // If new user, assign to a healthy DB based on consistent hashing
     if (userDbIndex === -1) {
-      // Temporarily route ALL new users to the active DB (index 1) 
-      // because DB 0 is out of quota and frozen.
-      userDbIndex = 1; 
-      
-      // const hash = crypto.createHash('md5').update(decodedToken.email).digest('hex');
-      // const hashInt = parseInt(hash.substring(0, 8), 16);
-      // userDbIndex = hashInt % dbConnections.length;
+      if (healthyDbIndices.length === 0) {
+        return res.status(503).json({ error: 'All database shards are currently unavailable or out of quota.' });
+      }
+      const hash = crypto.createHash('md5').update(decodedToken.email).digest('hex');
+      const hashInt = parseInt(hash.substring(0, 8), 16);
+      userDbIndex = healthyDbIndices[hashInt % healthyDbIndices.length];
     }
 
     // Wrap database operations in dbContext to route to the correct shard

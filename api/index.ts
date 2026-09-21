@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import sql, { initializeDb } from './db.js';
+import sql, { initializeDb, dbContext, dbConnections } from './db.js';
 import { auth as firebaseAuth } from './firebase-admin.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -275,34 +275,61 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     const decodedToken = await firebaseAuth.verifyIdToken(token);
     if (!decodedToken.email) return res.status(403).json({ error: 'Forbidden: No email in token' });
     
-    let users = await sql`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
+    let userDbIndex = -1;
+    let existingUser = null;
     
-    // Auto-create user in Postgres if they just signed up via Firebase
-    if (users.length === 0) {
-      const result = await sql`
-        INSERT INTO users (email, password_hash) 
-        VALUES (${decodedToken.email}, 'firebase_auth_managed') 
-        RETURNING id, email, is_2fa_enabled, verified_auth_times
-      `;
-      users = result;
-    }
-    
-    const user = users[0];
-
-    // Check 2FA
-    if (user.is_2fa_enabled) {
-      // Allow 2fa/verify to bypass the block so they can actually submit the code
-      if (req.path !== '/api/2fa/verify' && req.path !== '/api/user/me') {
-        const authTime = decodedToken.auth_time;
-        const verifiedTimes = user.verified_auth_times || [];
-        if (!verifiedTimes.includes(authTime)) {
-          return res.status(403).json({ error: '2fa_required' });
+    // Find which DB the user is already on
+    for (let i = 0; i < dbConnections.length; i++) {
+      try {
+        const users = await dbConnections[i]`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
+        if (users.length > 0) {
+          existingUser = users[0];
+          userDbIndex = i;
+          break;
         }
+      } catch (e) {
+        console.error('Error checking DB shard', i, e);
       }
     }
-    
-    req.user = { userId: user.id, email: user.email, auth_time: decodedToken.auth_time, is_2fa_enabled: user.is_2fa_enabled, verified_auth_times: user.verified_auth_times || [] };
-    next();
+
+    // If new user, assign to a DB based on consistent hashing
+    if (userDbIndex === -1) {
+      const hash = crypto.createHash('md5').update(decodedToken.email).digest('hex');
+      const hashInt = parseInt(hash.substring(0, 8), 16);
+      userDbIndex = hashInt % dbConnections.length;
+    }
+
+    // Wrap database operations in dbContext to route to the correct shard
+    await dbContext.run({ email: decodedToken.email, dbIndex: userDbIndex }, async () => {
+      let users = existingUser ? [existingUser] : [];
+      
+      // Auto-create user in Postgres if they just signed up via Firebase
+      if (users.length === 0) {
+        const result = await sql`
+          INSERT INTO users (email, password_hash) 
+          VALUES (${decodedToken.email}, 'firebase_auth_managed') 
+          RETURNING id, email, is_2fa_enabled, verified_auth_times
+        `;
+        users = result;
+      }
+      
+      const user = users[0];
+
+      // Check 2FA
+      if (user.is_2fa_enabled) {
+        // Allow 2fa/verify to bypass the block so they can actually submit the code
+        if (req.path !== '/api/2fa/verify' && req.path !== '/api/user/me') {
+          const authTime = decodedToken.auth_time;
+          const verifiedTimes = user.verified_auth_times || [];
+          if (!verifiedTimes.includes(authTime)) {
+            return res.status(403).json({ error: '2fa_required' });
+          }
+        }
+      }
+      
+      req.user = { userId: user.id, email: user.email, auth_time: decodedToken.auth_time, is_2fa_enabled: user.is_2fa_enabled, verified_auth_times: user.verified_auth_times || [] };
+      next();
+    });
   } catch (error) {
     console.error("Firebase auth error:", error);
     return res.status(403).json({ error: 'Forbidden: Auth verification failed or token expired' });
@@ -876,274 +903,286 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
     const nowTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone });
     const nowTimeDate = new Date(new Date().toLocaleString('en-US', { timeZone }));
 
-    // Fetch all users and their routines
-    const routines = await sql`
-      SELECT r.user_id, r.schedule, u.email 
-      FROM routines r
-      JOIN users u ON u.id = r.user_id
-    `;
-
     let emailsSent = 0;
 
-    for (const routine of routines) {
-      const todayBlocks = routine.schedule[todayName] || [];
-      
-      // --- Morning Agenda Logic ---
-      const currentHour = nowTimeDate.getHours();
-      if (currentHour >= 6 && currentHour < 8) {
-        const todayProgressRes = await sql`SELECT agenda_sent FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
-        const agendaSent = todayProgressRes.length > 0 ? todayProgressRes[0].agenda_sent : false;
+    for (let i = 0; i < dbConnections.length; i++) {
+      const dbInstance = dbConnections[i];
+      if (!dbInstance) continue;
 
-        if (!agendaSent) {
-          const pendingHomework = await sql`SELECT title, subject, due_date FROM homework WHERE user_id = ${routine.user_id} AND completed = false AND due_date <= ${todayDate} ORDER BY due_date ASC`;
+      try {
+        // Fetch all users and their routines for this specific database shard
+        const routines = await dbInstance`
+          SELECT r.user_id, r.schedule, u.email 
+          FROM routines r
+          JOIN users u ON u.id = r.user_id
+        `;
 
-          if (todayBlocks.length > 0 || pendingHomework.length > 0) {
-            let homeworkHtml = '';
-            if (pendingHomework.length > 0) {
-               homeworkHtml = `
-                 <h2 style="color: #4f46e5; margin-top: 24px; font-size: 18px;">📚 Pending Homework Reminder</h2>
-                 <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
-                   ${pendingHomework.map((h: any) => `<li style="margin-bottom: 8px;"><strong>${h.subject}:</strong> ${h.title} (Due: ${h.due_date})</li>`).join('')}
-                 </ul>
-               `;
+        for (const routine of routines) {
+          // Process each routine inside the dbContext so that inner sql queries hit the right DB
+          await dbContext.run({ email: routine.email, dbIndex: i }, async () => {
+            const todayBlocks = routine.schedule[todayName] || [];
+            
+            // --- Morning Agenda Logic ---
+            const currentHour = nowTimeDate.getHours();
+            if (currentHour >= 6 && currentHour < 8) {
+              const todayProgressRes = await sql`SELECT agenda_sent FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+              const agendaSent = todayProgressRes.length > 0 ? todayProgressRes[0].agenda_sent : false;
+
+              if (!agendaSent) {
+                const pendingHomework = await sql`SELECT title, subject, due_date FROM homework WHERE user_id = ${routine.user_id} AND completed = false AND due_date <= ${todayDate} ORDER BY due_date ASC`;
+
+                if (todayBlocks.length > 0 || pendingHomework.length > 0) {
+                  let homeworkHtml = '';
+                  if (pendingHomework.length > 0) {
+                     homeworkHtml = `
+                       <h2 style="color: #4f46e5; margin-top: 24px; font-size: 18px;">📚 Pending Homework Reminder</h2>
+                       <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
+                         ${pendingHomework.map((h: any) => `<li style="margin-bottom: 8px;"><strong>${h.subject}:</strong> ${h.title} (Due: ${h.due_date})</li>`).join('')}
+                       </ul>
+                     `;
+                  }
+
+                  const blockListHtml = todayBlocks.length > 0 
+                      ? `<p style="color: #374151; font-size: 16px;">Here is your schedule for today:</p>
+                         <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
+                           ${todayBlocks.map((b: any) => `<li style="margin-bottom: 8px;"><strong>${b.start} - ${b.end}</strong>: ${b.title}</li>`).join('')}
+                         </ul>`
+                      : `<p style="color: #374151; font-size: 16px;">You don't have a specific routine scheduled for today, but don't forget your pending tasks!</p>`;
+
+                  const icsContent = generateICS(todayDate, todayBlocks, pendingHomework);
+
+                  await sendEmailWithFallback({
+                    to: routine.email,
+                    subject: `☀️ Your StudyOS Agenda for Today`,
+                    html: `
+                      <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                          <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! ☀️</h1>
+                          ${blockListHtml}
+                          ${homeworkHtml}
+                          <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
+                        </div>
+                      </div>
+                    `,
+                    attachments: [
+                      {
+                        filename: `StudyOS_Agenda_${todayDate}.ics`,
+                        content: icsContent,
+                        contentType: 'text/calendar'
+                      }
+                    ]
+                  });
+                  
+                  if (todayProgressRes.length === 0) {
+                    await sql`
+                      INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks, agenda_sent) 
+                      VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]', true)
+                      ON CONFLICT DO NOTHING
+                    `;
+                  } else {
+                    await sql`UPDATE routine_progress SET agenda_sent = true WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+                  }
+                  emailsSent++;
+                }
+              }
             }
 
-            const blockListHtml = todayBlocks.length > 0 
-                ? `<p style="color: #374151; font-size: 16px;">Here is your schedule for today:</p>
-                   <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
-                     ${todayBlocks.map((b: any) => `<li style="margin-bottom: 8px;"><strong>${b.start} - ${b.end}</strong>: ${b.title}</li>`).join('')}
-                   </ul>`
-                : `<p style="color: #374151; font-size: 16px;">You don't have a specific routine scheduled for today, but don't forget your pending tasks!</p>`;
+            // Calculate yesterday's date & name for overnight blocks
+            const yesterday = new Date();
+            // Adjust yesterday using the timezone
+            const formatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' });
+            // To get yesterday safely, just subtract 24 hours
+            const yesterdayDateObj = new Date(new Date().toLocaleString('en-US', { timeZone }));
+            yesterdayDateObj.setDate(yesterdayDateObj.getDate() - 1);
+            const yesterdayName = yesterdayDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+            const yesterdayDateStr = yesterdayDateObj.toLocaleDateString('en-CA');
+            const yesterdayBlocks = routine.schedule[yesterdayName] || [];
 
-            const icsContent = generateICS(todayDate, todayBlocks, pendingHomework);
+            // Filter for blocks that have already ended TODAY
+            const missedBlocks = todayBlocks.filter((block: any) => {
+              // If overnight block (starts today, ends tomorrow), it hasn't ended today!
+              if (block.start > block.end) return false;
+              return block.end < nowTime;
+            }).map((b: any) => ({ ...b, targetDate: todayDate })); // Tag with the date it belongs to
 
-            await sendEmailWithFallback({
-              to: routine.email,
-              subject: `☀️ Your StudyOS Agenda for Today`,
-              html: `
-                <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
-                  <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                    <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! ☀️</h1>
-                    ${blockListHtml}
-                    ${homeworkHtml}
-                    <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
-                  </div>
-                </div>
-              `,
-              attachments: [
-                {
-                  filename: `StudyOS_Agenda_${todayDate}.ics`,
-                  content: icsContent,
-                  contentType: 'text/calendar'
-                }
-              ]
+            // Filter for blocks starting within the next 10 minutes TODAY
+            const upcomingBlocks = todayBlocks.filter((block: any) => {
+              const [hours, minutes] = block.start.split(':').map(Number);
+              const blockStartDate = new Date(nowTimeDate);
+              blockStartDate.setHours(hours, minutes, 0, 0);
+              
+              const diffMs = blockStartDate.getTime() - nowTimeDate.getTime();
+              const diffMins = diffMs / 60000;
+              
+              return diffMins > 0 && diffMins <= 10;
             });
-            
-            if (todayProgressRes.length === 0) {
-              await sql`
-                INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks, agenda_sent) 
-                VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]', true)
-                ON CONFLICT DO NOTHING
-              `;
-            } else {
-              await sql`UPDATE routine_progress SET agenda_sent = true WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+
+            // Filter for overnight blocks that started YESTERDAY and ended TODAY
+            const yesterdayMissedBlocks = yesterdayBlocks.filter((block: any) => {
+              // Only care about overnight blocks from yesterday
+              if (block.start > block.end) {
+                return block.end < nowTime;
+              }
+              return false;
+            }).map((b: any) => ({ ...b, targetDate: yesterdayDateStr })); // Belongs to yesterday's progress
+
+            const allMissedBlocks = [...missedBlocks, ...yesterdayMissedBlocks];
+
+            if (allMissedBlocks.length > 0 || upcomingBlocks.length > 0) {
+              // Get the progress and notified blocks for this user for today and yesterday
+              const todayProgressRes = await sql`SELECT progress, notified_blocks, upcoming_notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
+              const yesterdayProgressRes = await sql`SELECT progress, notified_blocks, upcoming_notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}`;
+              
+              let progressMapToday = todayProgressRes.length > 0 ? (todayProgressRes[0].progress || {}) : {};
+              let notifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].notified_blocks || []) : [];
+              let upcomingNotifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].upcoming_notified_blocks || []) : [];
+              
+              let progressMapYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].progress || {}) : {};
+              let notifiedListYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].notified_blocks || []) : [];
+
+              if (todayProgressRes.length === 0 && todayBlocks.length > 0) {
+                // Create empty progress row for today so we can track notifications
+                await sql`
+                  INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks) 
+                  VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]')
+                  ON CONFLICT DO NOTHING
+                `;
+              }
+
+              if (yesterdayProgressRes.length === 0 && yesterdayBlocks.length > 0) {
+                // Create empty progress row for yesterday so we can track notifications
+                await sql`
+                  INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks) 
+                  VALUES (${routine.user_id}, ${yesterdayDateStr}, '{}', '[]', '[]')
+                  ON CONFLICT DO NOTHING
+                `;
+              }
+
+              let updatedToday = false;
+              let updatedYesterday = false;
+
+              for (const block of allMissedBlocks) {
+                const isYesterday = block.targetDate === yesterdayDateStr;
+                const progressMap = isYesterday ? progressMapYesterday : progressMapToday;
+                const notifiedList = isYesterday ? notifiedListYesterday : notifiedListToday;
+
+                // If block is not checked off AND we haven't notified them yet
+                if (!progressMap[block.id] && !notifiedList.includes(block.id)) {
+                  // Send email
+                  await sendEmailWithFallback({
+                    to: routine.email,
+                    subject: `Missed Study Block: ${block.title}`,
+                    html: `
+                      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                          <div style="text-align: center; margin-bottom: 24px;">
+                            <h1 style="color: #4f46e5; margin: 0; font-size: 24px;">StudyOS Reminder</h1>
+                          </div>
+                          <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
+                            Hi there,
+                          </p>
+                          <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
+                            Your scheduled study block <strong>${block.title}</strong> (${block.start} - ${block.end}) just finished, but you haven't checked it off in StudyOS.
+                          </p>
+                          <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+                            <p style="color: #1e3a8a; margin: 0; font-weight: 500;">
+                              Did you complete it? If so, don't forget to tick it off to keep your streak going!
+                            </p>
+                          </div>
+                          <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
+                            Keep up the great work!<br>
+                            — The StudyOS Automation Team
+                          </p>
+                        </div>
+                      </div>
+                    `
+                  });
+                  emailsSent++;
+                  notifiedList.push(block.id);
+                  if (isYesterday) updatedYesterday = true;
+                  else updatedToday = true;
+                }
+              }
+
+              // Handle upcoming block emails
+              for (const block of upcomingBlocks) {
+                if (!upcomingNotifiedListToday.includes(block.id)) {
+                  // Generate ICS file
+                  const [sHour, sMin] = block.start.split(':').map(Number);
+                  const [eHour, eMin] = block.end.split(':').map(Number);
+                  const startArr: ics.DateArray = [nowTimeDate.getFullYear(), nowTimeDate.getMonth() + 1, nowTimeDate.getDate(), sHour, sMin];
+                  const endArr: ics.DateArray = [nowTimeDate.getFullYear(), nowTimeDate.getMonth() + 1, nowTimeDate.getDate(), eHour, eMin];
+                  
+                  const { error: icsError, value: icsValue } = ics.createEvent({
+                    title: block.title,
+                    description: 'StudyOS Scheduled Block',
+                    start: startArr,
+                    end: endArr,
+                  });
+
+                  // Send upcoming reminder email
+                  await sendEmailWithFallback({
+                    to: routine.email,
+                    subject: `Upcoming: ${block.title} starts soon!`,
+                    html: `
+                      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
+                        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                          <div style="text-align: center; margin-bottom: 24px;">
+                            <h1 style="color: #4f46e5; margin: 0; font-size: 24px;">StudyOS Reminder</h1>
+                          </div>
+                          <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
+                            Hi there,
+                          </p>
+                          <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
+                            Get ready! Your study block <strong>${block.title}</strong> is starting soon (${block.start} - ${block.end}).
+                          </p>
+                          <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+                            <p style="color: #1e3a8a; margin: 0; font-weight: 500;">
+                              Grab some water, clear your desk, and get ready to crush this session!
+                            </p>
+                          </div>
+                          <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
+                            You got this!<br>
+                            — The StudyOS Automation Team
+                          </p>
+                        </div>
+                   </div>
+                    `,
+                    attachments: icsValue ? [
+                      {
+                        filename: 'studyos-block.ics',
+                        content: icsValue,
+                        contentType: 'text/calendar'
+                      }
+                    ] : []
+                  });
+                  emailsSent++;
+                  upcomingNotifiedListToday.push(block.id);
+                  updatedToday = true;
+                }
+              }
+
+              // Update the DB arrays
+              if (updatedToday) {
+                await sql`
+                  UPDATE routine_progress 
+                  SET notified_blocks = ${JSON.stringify(notifiedListToday)},
+                      upcoming_notified_blocks = ${JSON.stringify(upcomingNotifiedListToday)}
+                  WHERE user_id = ${routine.user_id} AND date = ${todayDate}
+                `;
+              }
+              if (updatedYesterday) {
+                await sql`
+                  UPDATE routine_progress 
+                  SET notified_blocks = ${JSON.stringify(notifiedListYesterday)}
+                  WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}
+                `;
+              }
             }
-            emailsSent++;
-          }
+          });
         }
-      }
-
-      // Calculate yesterday's date & name for overnight blocks
-      const yesterday = new Date();
-      // Adjust yesterday using the timezone
-      const formatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' });
-      // To get yesterday safely, just subtract 24 hours
-      const yesterdayDateObj = new Date(new Date().toLocaleString('en-US', { timeZone }));
-      yesterdayDateObj.setDate(yesterdayDateObj.getDate() - 1);
-      const yesterdayName = yesterdayDateObj.toLocaleDateString('en-US', { weekday: 'long' });
-      const yesterdayDateStr = yesterdayDateObj.toLocaleDateString('en-CA');
-      const yesterdayBlocks = routine.schedule[yesterdayName] || [];
-
-      // Filter for blocks that have already ended TODAY
-      const missedBlocks = todayBlocks.filter((block: any) => {
-        // If overnight block (starts today, ends tomorrow), it hasn't ended today!
-        if (block.start > block.end) return false;
-        return block.end < nowTime;
-      }).map((b: any) => ({ ...b, targetDate: todayDate })); // Tag with the date it belongs to
-
-      // Filter for blocks starting within the next 10 minutes TODAY
-      const upcomingBlocks = todayBlocks.filter((block: any) => {
-        const [hours, minutes] = block.start.split(':').map(Number);
-        const blockStartDate = new Date(nowTimeDate);
-        blockStartDate.setHours(hours, minutes, 0, 0);
-        
-        const diffMs = blockStartDate.getTime() - nowTimeDate.getTime();
-        const diffMins = diffMs / 60000;
-        
-        return diffMins > 0 && diffMins <= 10;
-      });
-
-      // Filter for overnight blocks that started YESTERDAY and ended TODAY
-      const yesterdayMissedBlocks = yesterdayBlocks.filter((block: any) => {
-        // Only care about overnight blocks from yesterday
-        if (block.start > block.end) {
-          return block.end < nowTime;
-        }
-        return false;
-      }).map((b: any) => ({ ...b, targetDate: yesterdayDateStr })); // Belongs to yesterday's progress
-
-      const allMissedBlocks = [...missedBlocks, ...yesterdayMissedBlocks];
-
-      if (allMissedBlocks.length > 0 || upcomingBlocks.length > 0) {
-        // Get the progress and notified blocks for this user for today and yesterday
-        const todayProgressRes = await sql`SELECT progress, notified_blocks, upcoming_notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${todayDate}`;
-        const yesterdayProgressRes = await sql`SELECT progress, notified_blocks, upcoming_notified_blocks FROM routine_progress WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}`;
-        
-        let progressMapToday = todayProgressRes.length > 0 ? (todayProgressRes[0].progress || {}) : {};
-        let notifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].notified_blocks || []) : [];
-        let upcomingNotifiedListToday = todayProgressRes.length > 0 ? (todayProgressRes[0].upcoming_notified_blocks || []) : [];
-        
-        let progressMapYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].progress || {}) : {};
-        let notifiedListYesterday = yesterdayProgressRes.length > 0 ? (yesterdayProgressRes[0].notified_blocks || []) : [];
-
-        if (todayProgressRes.length === 0 && todayBlocks.length > 0) {
-          // Create empty progress row for today so we can track notifications
-          await sql`
-            INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks) 
-            VALUES (${routine.user_id}, ${todayDate}, '{}', '[]', '[]')
-            ON CONFLICT DO NOTHING
-          `;
-        }
-
-        if (yesterdayProgressRes.length === 0 && yesterdayBlocks.length > 0) {
-          // Create empty progress row for yesterday so we can track notifications
-          await sql`
-            INSERT INTO routine_progress (user_id, date, progress, notified_blocks, upcoming_notified_blocks) 
-            VALUES (${routine.user_id}, ${yesterdayDateStr}, '{}', '[]', '[]')
-            ON CONFLICT DO NOTHING
-          `;
-        }
-
-        let updatedToday = false;
-        let updatedYesterday = false;
-
-        for (const block of allMissedBlocks) {
-          const isYesterday = block.targetDate === yesterdayDateStr;
-          const progressMap = isYesterday ? progressMapYesterday : progressMapToday;
-          const notifiedList = isYesterday ? notifiedListYesterday : notifiedListToday;
-
-          // If block is not checked off AND we haven't notified them yet
-          if (!progressMap[block.id] && !notifiedList.includes(block.id)) {
-            // Send email
-            await sendEmailWithFallback({
-              to: routine.email,
-              subject: `Missed Study Block: ${block.title}`,
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
-                  <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                    <div style="text-align: center; margin-bottom: 24px;">
-                      <h1 style="color: #4f46e5; margin: 0; font-size: 24px;">StudyOS Reminder</h1>
-                    </div>
-                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
-                      Hi there,
-                    </p>
-                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
-                      Your scheduled study block <strong>${block.title}</strong> (${block.start} - ${block.end}) just finished, but you haven't checked it off in StudyOS.
-                    </p>
-                    <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
-                      <p style="color: #1e3a8a; margin: 0; font-weight: 500;">
-                        Did you complete it? If so, don't forget to tick it off to keep your streak going!
-                      </p>
-                    </div>
-                    <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
-                      Keep up the great work!<br>
-                      — The StudyOS Automation Team
-                    </p>
-                  </div>
-                </div>
-              `
-            });
-            emailsSent++;
-            notifiedList.push(block.id);
-            if (isYesterday) updatedYesterday = true;
-            else updatedToday = true;
-          }
-        }
-
-        // Handle upcoming block emails
-        for (const block of upcomingBlocks) {
-          if (!upcomingNotifiedListToday.includes(block.id)) {
-            // Generate ICS file
-            const [sHour, sMin] = block.start.split(':').map(Number);
-            const [eHour, eMin] = block.end.split(':').map(Number);
-            const startArr: ics.DateArray = [nowTimeDate.getFullYear(), nowTimeDate.getMonth() + 1, nowTimeDate.getDate(), sHour, sMin];
-            const endArr: ics.DateArray = [nowTimeDate.getFullYear(), nowTimeDate.getMonth() + 1, nowTimeDate.getDate(), eHour, eMin];
-            
-            const { error: icsError, value: icsValue } = ics.createEvent({
-              title: block.title,
-              description: 'StudyOS Scheduled Block',
-              start: startArr,
-              end: endArr,
-            });
-
-            // Send upcoming reminder email
-            await sendEmailWithFallback({
-              to: routine.email,
-              subject: `Upcoming: ${block.title} starts soon!`,
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
-                  <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                    <div style="text-align: center; margin-bottom: 24px;">
-                      <h1 style="color: #4f46e5; margin: 0; font-size: 24px;">StudyOS Reminder</h1>
-                    </div>
-                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 16px;">
-                      Hi there,
-                    </p>
-                    <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
-                      Get ready! Your study block <strong>${block.title}</strong> is starting soon (${block.start} - ${block.end}).
-                    </p>
-                    <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
-                      <p style="color: #1e3a8a; margin: 0; font-weight: 500;">
-                        Grab some water, clear your desk, and get ready to crush this session!
-                      </p>
-                    </div>
-                    <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
-                      You got this!<br>
-                      — The StudyOS Automation Team
-                    </p>
-                  </div>
-             </div>
-              `,
-              attachments: icsValue ? [
-                {
-                  filename: 'studyos-block.ics',
-                  content: icsValue,
-                  contentType: 'text/calendar'
-                }
-              ] : []
-            });
-            emailsSent++;
-            upcomingNotifiedListToday.push(block.id);
-            updatedToday = true;
-          }
-        }
-
-        // Update the DB arrays
-        if (updatedToday) {
-          await sql`
-            UPDATE routine_progress 
-            SET notified_blocks = ${JSON.stringify(notifiedListToday)},
-                upcoming_notified_blocks = ${JSON.stringify(upcomingNotifiedListToday)}
-            WHERE user_id = ${routine.user_id} AND date = ${todayDate}
-          `;
-        }
-        if (updatedYesterday) {
-          await sql`
-            UPDATE routine_progress 
-            SET notified_blocks = ${JSON.stringify(notifiedListYesterday)}
-            WHERE user_id = ${routine.user_id} AND date = ${yesterdayDateStr}
-          `;
-        }
+      } catch (dbErr) {
+        console.error("Cron skipped a db instance (possibly suspended):", dbErr);
       }
     }
 

@@ -8,6 +8,7 @@ type User = {
   class_level?: string;
   board?: string;
   is_2fa_enabled?: boolean;
+  username?: string;
 };
 
 type AuthContextType = {

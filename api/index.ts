@@ -559,13 +559,23 @@ app.get('/api/user/me', authenticateToken, async (req: any, res: any) => {
     const users = await sql`SELECT id, email, class_level, board, is_2fa_enabled, verified_auth_times FROM users WHERE id = ${req.user.userId}`;
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
     
-    const user = users[0];
+    const user = users[0] as any;
     let requires2FA = false;
     if (user.is_2fa_enabled) {
       const verifiedTimes = user.verified_auth_times || [];
       if (!verifiedTimes.includes(req.user.auth_time)) {
         requires2FA = true;
       }
+    }
+    
+    // Fetch username from Firestore
+    try {
+      const userDoc = await firestore.collection('users').doc(req.user.uid).get();
+      if (userDoc.exists) {
+        user.username = userDoc.data()?.username;
+      }
+    } catch (fsErr) {
+      console.error('Error fetching username from firestore:', fsErr);
     }
     
     res.json({ user, requires2FA });

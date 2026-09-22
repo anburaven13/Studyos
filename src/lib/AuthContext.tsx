@@ -9,6 +9,7 @@ type User = {
   board?: string;
   is_2fa_enabled?: boolean;
   username?: string;
+  uid?: string;
 };
 
 type AuthContextType = {
@@ -39,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     setRequires2FA(data.requires2FA);
     if (!data.requires2FA) {
-      setUser(data.user);
+      setUser({ ...data.user, uid: auth.currentUser?.uid });
     } else {
       setUser(null);
     }

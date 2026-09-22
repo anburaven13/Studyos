@@ -64,13 +64,22 @@ Build a customized daily schedule. Use the auto-generator to instantly structure
 
 StudyOS is built with modern, serverless web technologies to ensure a lightning-fast and secure experience:
 
-| Category | Technology |
+| Layer | Technology |
 |---|---|
-| **Frontend Ecosystem** | React 19, TypeScript, Vite, Tailwind CSS, Zustand, React Router v7 |
-| **Backend & Database** | Node.js, Express (Serverless), Neon Serverless Postgres |
-| **AI Integration** | Google GenAI SDK (Gemini 3.7 Flash) |
-| **Security** | JSON Web Tokens (JWT), Bcrypt, Express Rate Limiting |
-| **Deployment** | Vercel Serverless Functions |
+| Frontend Core | React 19, TypeScript, Vite |
+| PWA & SEO | vite-plugin-pwa, react-helmet-async |
+| State & Routing | Zustand, React Router v7 |
+| Styling & UI | Tailwind CSS (Typography & Animate), lucide-react, clsx, tailwind-merge |
+| Animation & Data | Motion (Framer), Recharts |
+| Validation & Schema | Zod |
+| Markdown & Content | React Markdown, Rehype (KaTeX), Remark (GFM), PDF.js |
+| Media & Utilities | Sharp (Image Processing), date-fns, react-hotkeys-hook, qrcode, ics |
+| Backend Core | Node.js, Express (Serverless) |
+| Database | Neon Serverless Postgres |
+| Auth & Security | Firebase Admin, JSON Web Tokens (JWT), Bcrypt, Speakeasy (2FA), Helmet, express-rate-limit |
+| AI | Google GenAI (Gemini 3.8/3.7/3.6/3.5/2.5 Flash, Gemma 4 Fallbacks), Nvidia |
+| Communications | Resend, Nodemailer |
+| Hosting | Vercel Serverless Functions |
 
 <br/>
 

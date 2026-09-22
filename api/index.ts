@@ -212,18 +212,20 @@ const studySessionSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
 });
 
-// Initialize DB schema on cold start
-let dbInitialized = false;
-app.use(async (req, res, next) => {
-  if (!dbInitialized) {
-    try {
-      await initializeDb();
-      dbInitialized = true;
-    } catch (e) {
-      console.error('Failed to initialize DB schema:', e);
-    }
+// --- Manual DB Migration Endpoint ---
+// Trigger this manually via POST /api/admin/migrate with x-admin-secret header
+app.post('/api/admin/migrate', async (req: any, res: any) => {
+  const secret = req.headers['x-admin-secret'];
+  if (!secret || secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-  next();
+  try {
+    await initializeDb();
+    res.json({ success: true, message: 'All database schemas initialized successfully' });
+  } catch (e) {
+    console.error('Migration failed:', e);
+    res.status(500).json({ error: 'Migration failed', details: String(e) });
+  }
 });
 
 // --- Authentication Routes ---
@@ -277,31 +279,55 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     
     let userDbIndex = -1;
     let existingUser = null;
-    let healthyDbIndices: number[] = [];
     
-    // Find which DB the user is already on and track healthy DBs
-    for (let i = 0; i < dbConnections.length; i++) {
+    // 1. OPTIMIZED PATH: Check if the token already contains the DB Index
+    if (decodedToken.dbIndex !== undefined) {
+      userDbIndex = decodedToken.dbIndex;
       try {
-        const users = await dbConnections[i]`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
+        // Query ONLY the single database shard!
+        const users = await dbConnections[userDbIndex]`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
         if (users.length > 0) {
           existingUser = users[0];
-          userDbIndex = i;
-          break;
         }
-        healthyDbIndices.push(i); // If the query succeeds, this DB is healthy
       } catch (e) {
-        console.error('Error checking DB shard', i, e);
+        console.error('Error fetching user from assigned shard', e);
       }
-    }
-
-    // If new user, assign to a healthy DB based on consistent hashing
+    } 
+    
+    // 2. FALLBACK PATH: Broadcast search for legacy logins or new signups
     if (userDbIndex === -1) {
-      if (healthyDbIndices.length === 0) {
-        return res.status(503).json({ error: 'All database shards are currently unavailable or out of quota.' });
+      let healthyDbIndices: number[] = [];
+      
+      for (let i = 0; i < dbConnections.length; i++) {
+        try {
+          const users = await dbConnections[i]`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;
+          if (users.length > 0) {
+            existingUser = users[0];
+            userDbIndex = i;
+            break;
+          }
+          healthyDbIndices.push(i);
+        } catch (e) {
+          console.error('Error checking DB shard', i, e);
+        }
       }
-      const hash = crypto.createHash('md5').update(decodedToken.email).digest('hex');
-      const hashInt = parseInt(hash.substring(0, 8), 16);
-      userDbIndex = healthyDbIndices[hashInt % healthyDbIndices.length];
+
+      // If brand new user, assign to a healthy DB based on consistent hashing
+      if (userDbIndex === -1) {
+        if (healthyDbIndices.length === 0) {
+          return res.status(503).json({ error: 'All database shards are currently unavailable or out of quota.' });
+        }
+        const hash = crypto.createHash('md5').update(decodedToken.email).digest('hex');
+        const hashInt = parseInt(hash.substring(0, 8), 16);
+        userDbIndex = healthyDbIndices[hashInt % healthyDbIndices.length];
+      }
+      
+      // Save this assignment to Firebase so future logins use the Optimized Path!
+      try {
+        await firebaseAuth.setCustomUserClaims(decodedToken.uid, { ...decodedToken, dbIndex: userDbIndex });
+      } catch (claimErr) {
+        console.error('Failed to save dbIndex custom claim', claimErr);
+      }
     }
 
     // Wrap database operations in dbContext to route to the correct shard

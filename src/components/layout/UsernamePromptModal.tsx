@@ -54,11 +54,11 @@ export default function UsernamePromptModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md p-4">
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-md bg-zinc-900 border border-white/10 p-8 rounded-3xl shadow-2xl overflow-hidden relative"
+        className="w-full max-w-md bg-card border border-border p-8 rounded-3xl shadow-2xl overflow-hidden relative"
       >
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[100px] rounded-full pointer-events-none"></div>
         <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-blue-500/20 blur-[100px] rounded-full pointer-events-none"></div>
@@ -68,7 +68,7 @@ export default function UsernamePromptModal() {
             <User className="w-8 h-8 text-primary" />
           </div>
           
-          <h2 className="text-3xl font-bold mb-2">Pick a Username</h2>
+          <h2 className="text-3xl font-bold mb-2 text-card-foreground">Pick a Username</h2>
           <p className="text-muted-foreground mb-8 text-sm">
             We just launched messaging! Claim your unique username to start chatting with friends.
           </p>
@@ -83,11 +83,11 @@ export default function UsernamePromptModal() {
                   onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                   placeholder="superstudent99"
                   disabled={loading}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 outline-none focus:border-primary transition-colors disabled:opacity-50"
+                  className="w-full bg-background border border-input rounded-xl py-3 pl-12 pr-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all disabled:opacity-50 text-foreground"
                   autoFocus
                 />
               </div>
-              {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+              {error && <p className="text-destructive text-sm mt-2">{error}</p>}
             </div>
 
             <button

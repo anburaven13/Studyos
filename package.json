@@ -16,6 +16,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "@tailwindcss/typography": "^0.5.20",
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "date-fns": "^4.4.0",

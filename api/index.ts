@@ -3,7 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import sql, { initializeDb, dbContext, dbConnections } from './db.js';
-import { auth as firebaseAuth } from './firebase-admin.js';
+import { auth as firebaseAuth, firestore, storage as firebaseStorage } from './firebase-admin.js';
+import { v2 as cloudinary } from 'cloudinary';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -14,6 +15,12 @@ import nodemailer from 'nodemailer';
 import * as ics from 'ics';
 
 dotenv.config();
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const getTransporters = () => {
   const transporters = [];
@@ -358,7 +365,7 @@ const authenticateToken = async (req: any, res: any, next: any) => {
         }
       }
       
-      req.user = { userId: user.id, email: user.email, auth_time: decodedToken.auth_time, is_2fa_enabled: user.is_2fa_enabled, verified_auth_times: user.verified_auth_times || [] };
+      req.user = { userId: user.id, uid: decodedToken.uid, email: user.email, auth_time: decodedToken.auth_time, is_2fa_enabled: user.is_2fa_enabled, verified_auth_times: user.verified_auth_times || [] };
       next();
     });
   } catch (error) {
@@ -366,6 +373,141 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     return res.status(403).json({ error: 'Forbidden: Auth verification failed or token expired' });
   }
 };
+
+app.get('/api/cloudinary/sign', authenticateToken, (req: any, res: any) => {
+  try {
+    const timestamp = Math.round((new Date).getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request({
+      timestamp: timestamp,
+      folder: 'studyos_chat',
+    }, process.env.CLOUDINARY_API_SECRET!);
+
+    res.json({ timestamp, signature, cloudName: process.env.CLOUDINARY_CLOUD_NAME, apiKey: process.env.CLOUDINARY_API_KEY });
+  } catch (err: any) {
+    console.error('Cloudinary Sign Error:', err);
+    res.status(500).json({ error: 'Failed to sign cloudinary upload' });
+  }
+});
+
+app.post('/api/user/username', authenticateToken, async (req: any, res: any) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+  
+  try {
+    const usernameDoc = await firestore.collection('usernames').doc(username.toLowerCase()).get();
+    if (usernameDoc.exists) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+    
+    const userDoc = await firestore.collection('users').doc(req.user.uid).get();
+    if (userDoc.exists && userDoc.data()?.username) {
+      return res.status(400).json({ error: 'User already has a username' });
+    }
+
+    const batch = firestore.batch();
+    batch.set(firestore.collection('usernames').doc(username.toLowerCase()), {
+      uid: req.user.uid,
+      createdAt: new Date().toISOString()
+    });
+    
+    batch.set(firestore.collection('users').doc(req.user.uid), {
+      username: username,
+      usernameLower: username.toLowerCase(),
+      email: req.user.email,
+      postgresId: req.user.userId,
+      createdAt: new Date().toISOString()
+    }, { merge: true });
+    
+    await batch.commit();
+    res.json({ success: true, username });
+  } catch (error: any) {
+    console.error('Username claim error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/friends/request', authenticateToken, async (req: any, res: any) => {
+  const { targetUsername } = req.body;
+  if (!targetUsername) return res.status(400).json({ error: 'targetUsername required' });
+  
+  try {
+    const targetDoc = await firestore.collection('usernames').doc(targetUsername.toLowerCase()).get();
+    if (!targetDoc.exists) return res.status(404).json({ error: 'User not found' });
+    
+    const targetUid = targetDoc.data()?.uid;
+    if (targetUid === req.user.uid) return res.status(400).json({ error: 'Cannot add yourself' });
+
+    const friendshipId = [req.user.uid, targetUid].sort().join('_');
+    const friendDoc = await firestore.collection('friendships').doc(friendshipId).get();
+    
+    if (friendDoc.exists) {
+      return res.status(400).json({ error: 'Friendship or request already exists' });
+    }
+
+    await firestore.collection('friendships').doc(friendshipId).set({
+      users: [req.user.uid, targetUid],
+      status: 'pending',
+      requester: req.user.uid,
+      createdAt: new Date().toISOString()
+    });
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Friend request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/friends/accept', authenticateToken, async (req: any, res: any) => {
+  const { friendshipId } = req.body;
+  if (!friendshipId) return res.status(400).json({ error: 'friendshipId required' });
+  
+  try {
+    const friendDoc = await firestore.collection('friendships').doc(friendshipId).get();
+    if (!friendDoc.exists) return res.status(404).json({ error: 'Request not found' });
+    
+    const data = friendDoc.data()!;
+    if (data.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
+    if (data.requester === req.user.uid) return res.status(400).json({ error: 'Cannot accept your own request' });
+    if (!data.users.includes(req.user.uid)) return res.status(403).json({ error: 'Forbidden' });
+
+    await firestore.collection('friendships').doc(friendshipId).update({
+      status: 'accepted',
+      acceptedAt: new Date().toISOString()
+    });
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Accept friend error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/users/search', authenticateToken, async (req: any, res: any) => {
+  const query = req.query.q;
+  if (!query || typeof query !== 'string') return res.json({ users: [] });
+  
+  try {
+    const snapshot = await firestore.collection('users')
+      .where('usernameLower', '>=', query.toLowerCase())
+      .where('usernameLower', '<=', query.toLowerCase() + '\uf8ff')
+      .limit(10)
+      .get();
+      
+    const users = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        uid: doc.id,
+        username: data.username,
+      };
+    }).filter(u => u.uid !== req.user.uid);
+    
+    res.json({ users });
+  } catch (error: any) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) => {
   try {

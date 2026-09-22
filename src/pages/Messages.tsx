@@ -106,28 +106,6 @@ export default function Messages() {
     }
   };
 
-  const uploadToFirebase = (file: File, type: string) => {
-    return new Promise<string>((resolve, reject) => {
-      const storageRef = ref(storage, `chats/${activeFriend.id}/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-        }, 
-        (error) => {
-          console.error("Firebase upload error", error);
-          reject(error);
-        }, 
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        }
-      );
-    });
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeFriend) return;
@@ -164,22 +142,18 @@ export default function Messages() {
           if (!uploadRes.ok) throw new Error(uploadData.error?.message || 'Cloudinary rate limit hit');
           
           finalUrl = uploadData.secure_url;
-        } catch (cloudErr) {
-          console.warn("Cloudinary upload failed (Quota Exceeded?), automatically falling back to Firebase Storage:", cloudErr);
-          
-          // 2. AUTOMATIC FALLBACK: Heavily compress and use Firebase
-          // (In a real app we'd compress via ffmpeg.wasm here, assuming 5MB limit check)
-          if (file.size > 5 * 1024 * 1024) {
-            alert('Cloudinary quota exceeded. File must be under 5MB for Firebase fallback.');
-            setUploadProgress(null);
-            return;
-          }
-          finalUrl = await uploadToFirebase(file, finalType);
+        } catch (cloudinaryError) {
+          console.error("Cloudinary upload failed:", cloudinaryError);
+          alert("Media upload failed. Storage quota might be full.");
+          setUploadProgress(null);
+          return;
         }
       } else {
-        // Voice notes / PDFs always go to Firebase
-        finalType = file.type.includes('pdf') ? 'pdf' : file.type.includes('audio') ? 'audio' : 'file';
-        finalUrl = await uploadToFirebase(file, finalType);
+        // We only support images and videos through Cloudinary right now
+        // PDFs/Audio are disabled without Firebase Storage
+        alert("Only images and videos are supported at this time.");
+        setUploadProgress(null);
+        return;
       }
 
       // Send the message with the URL

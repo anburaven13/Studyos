@@ -174,7 +174,9 @@ export default function Messages() {
         <div className="p-4 border-b border-white/10">
           <h2 className="text-xl font-bold mb-4">Messages</h2>
           <form onSubmit={handleSearch} className="relative">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+            <button type="submit" className="absolute left-3 top-2.5 z-10 text-muted-foreground hover:text-white transition-colors">
+              <Search className="w-4 h-4" />
+            </button>
             <input 
               type="text" 
               placeholder="Find friends by @username..."

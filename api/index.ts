@@ -415,6 +415,56 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     }
   });
 
+  // Cron job to clean up media older than 30 days
+  app.get('/api/cron/cleanup-media', async (req: any, res: any) => {
+    try {
+      if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoffTime = thirtyDaysAgo.getTime();
+
+      const snapshot = await firestore.collection('messages').get();
+      let deletedCount = 0;
+
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+        if (data.mediaUrl && data.timestamp) {
+          const msgTime = new Date(data.timestamp).getTime();
+          if (msgTime < cutoffTime) {
+            // Delete from Cloudinary
+            const uploadIndex = data.mediaUrl.indexOf('/upload/');
+            if (uploadIndex !== -1) {
+              const pathAfterUpload = data.mediaUrl.substring(uploadIndex + 8);
+              const pathWithoutVersion = pathAfterUpload.replace(/^v\d+\//, '');
+              const publicId = pathWithoutVersion.substring(0, pathWithoutVersion.lastIndexOf('.')) || pathWithoutVersion;
+              const resourceType = data.mediaUrl.includes('/video/') ? 'video' : 'image';
+              
+              try {
+                await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+                await doc.ref.update({ 
+                  mediaUrl: null, 
+                  mediaType: null,
+                  text: data.text ? data.text + '\n\n[Media auto-deleted after 30 days to save space]' : '[Media auto-deleted after 30 days to save space]'
+                });
+                deletedCount++;
+              } catch (e) {
+                console.error('Failed to cleanup old media for msg', doc.id, e);
+              }
+            }
+          }
+        }
+      }
+
+      res.json({ success: true, deletedCount });
+    } catch (err: any) {
+      console.error('Media cleanup error:', err);
+      res.status(500).json({ error: 'Failed to run media cleanup' });
+    }
+  });
+
 app.post('/api/user/username', authenticateToken, async (req: any, res: any) => {
   const { username } = req.body;
   if (!username) return res.status(400).json({ error: 'Username required' });

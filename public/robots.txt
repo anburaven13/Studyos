@@ -2,5 +2,36 @@ User-agent: *
 Allow: /
 Disallow: /app/
 Disallow: /api/
+Disallow: /onboarding
+Disallow: /login
+
+# Explicitly allow AI search crawlers for Generative Engine Optimization (GEO)
+User-agent: GPTBot
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /onboarding
+Disallow: /login
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /onboarding
+Disallow: /login
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /onboarding
+Disallow: /login
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /onboarding
+Disallow: /login
 
 Sitemap: https://studyos-snowy.vercel.app/sitemap.xml

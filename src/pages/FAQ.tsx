@@ -55,6 +55,20 @@ export default function FAQ() {
       <Helmet>
         <title>FAQ | StudyOS</title>
         <meta name="description" content="Frequently Asked Questions about StudyOS." />
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": faqs.map(f => ({
+              "@type": "Question",
+              "name": f.question,
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": f.answer
+              }
+            }))
+          })}
+        </script>
       </Helmet>
       
       {/* Immersive Background Effects */}

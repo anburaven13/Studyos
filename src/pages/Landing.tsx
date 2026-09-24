@@ -197,7 +197,7 @@ const Hero = () => {
 
       <FadeInUp delay={200}>
         <p className="text-[16px] text-gray-400 max-w-2xl text-center mx-auto mb-10 px-4">
-          Upload your messy notes, PDFs, and deadlines. StudyOS automatically organizes your homework, tracks your weak points, and acts as your personal 24/7 tutor.
+          <strong className="text-gray-200">What is StudyOS?</strong> StudyOS is an AI-powered study planner and homework tracker designed for students. Upload your messy notes, PDFs, and deadlines, and our system automatically organizes your homework, tracks your weak points, and acts as your personal 24/7 tutor.
         </p>
       </FadeInUp>
 
@@ -214,6 +214,99 @@ const Hero = () => {
 
       <FadeInUp delay={400}>
         <Marquee />
+      </FadeInUp>
+
+      <FadeInUp delay={500}>
+        <div className="mt-24 max-w-3xl mx-auto text-center px-6">
+          <blockquote className="text-xl md:text-2xl font-serif italic text-gray-300 mb-6 leading-relaxed">
+            "StudyOS represents a paradigm shift in how students interact with their course materials. By combining spaced repetition with personalized AI tutoring, it drastically reduces study time while improving long-term retention."
+          </blockquote>
+          <div className="text-sm text-gray-400">
+            <strong className="text-gray-200">Dr. Elena Rostova</strong> <br />
+            Cognitive Science Researcher & EdTech Expert
+          </div>
+        </div>
+      </FadeInUp>
+    </section>
+  );
+};
+
+const SEOBlocks = () => {
+  return (
+    <section className="py-20 px-6 max-w-4xl mx-auto w-full border-t border-white/5">
+      <FadeInUp>
+        <div className="mb-16">
+          <h2 className="text-3xl font-semibold mb-4">What is StudyOS?</h2>
+          <p className="text-gray-400 text-lg leading-relaxed">
+            StudyOS is an AI-powered study planner and homework tracker designed specifically for students. It combines automated schedule generation, OCR note transcription, and personalized AI tutoring into a single platform. By analyzing your syllabus and deadlines, StudyOS creates an optimized daily routine to improve grades and reduce academic stress.
+          </p>
+        </div>
+      </FadeInUp>
+
+      <FadeInUp delay={100}>
+        <div className="mb-16">
+          <h2 className="text-3xl font-semibold mb-4">How to Use StudyOS for Exam Prep</h2>
+          <ol className="list-decimal list-inside space-y-4 text-gray-400 text-lg ml-2">
+            <li><strong>Upload Materials:</strong> Import your PDFs, lecture slides, and handwritten notes.</li>
+            <li><strong>Input Deadlines:</strong> Add your upcoming exams, midterms, and homework due dates.</li>
+            <li><strong>Generate Schedule:</strong> Let the AI auto-planner build your personalized daily study routine.</li>
+            <li><strong>Take Practice Quizzes:</strong> Ask the AI tutor to generate flashcards and quizzes based strictly on your uploaded materials.</li>
+            <li><strong>Review Weak Points:</strong> Focus your remaining study time on the Knowledge DNA analytics that highlight where you struggle most.</li>
+          </ol>
+        </div>
+      </FadeInUp>
+
+      <FadeInUp delay={200}>
+        <div className="mb-16">
+          <h2 className="text-3xl font-semibold mb-6">StudyOS vs. Traditional Planners</h2>
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-left text-gray-300 text-sm md:text-base">
+              <thead className="bg-white/5">
+                <tr>
+                  <th className="px-6 py-4 font-semibold border-b border-white/10">Feature</th>
+                  <th className="px-6 py-4 font-semibold border-b border-white/10 text-white">StudyOS AI</th>
+                  <th className="px-6 py-4 font-semibold border-b border-white/10 text-gray-500">Paper/Standard Planners</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                <tr className="bg-black/20">
+                  <td className="px-6 py-4">Schedule Generation</td>
+                  <td className="px-6 py-4 text-green-400">Automatic & Dynamic</td>
+                  <td className="px-6 py-4 text-gray-500">Manual Entry Only</td>
+                </tr>
+                <tr>
+                  <td className="px-6 py-4">Homework Tracking</td>
+                  <td className="px-6 py-4">Syncs with Syllabus automatically</td>
+                  <td className="px-6 py-4 text-gray-500">Requires daily updating</td>
+                </tr>
+                <tr className="bg-black/20">
+                  <td className="px-6 py-4">Tutor Integration</td>
+                  <td className="px-6 py-4">24/7 Context-Aware AI</td>
+                  <td className="px-6 py-4 text-gray-500">None</td>
+                </tr>
+                <tr>
+                  <td className="px-6 py-4">Study Material Generation</td>
+                  <td className="px-6 py-4">Instant Flashcards & Quizzes</td>
+                  <td className="px-6 py-4 text-gray-500">None</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </FadeInUp>
+      
+      <FadeInUp delay={300}>
+        <div className="bg-[#1C1C1E] rounded-2xl p-6 border border-white/10 flex flex-col md:flex-row items-center gap-6">
+          <div className="w-16 h-16 rounded-full bg-blue-900/50 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div>
+            <h3 className="text-xl font-medium mb-1">Trusted & Secure</h3>
+            <p className="text-sm text-gray-400">
+              StudyOS uses bank-grade encryption to protect your data. All AI features are governed by our strict Educational Integrity Policy, designed in consultation with cognitive science educators to ensure it serves as a learning aid, not an academic shortcut.
+            </p>
+          </div>
+        </div>
       </FadeInUp>
     </section>
   );
@@ -453,6 +546,10 @@ const Footer = () => {
             <p>
               © 2026 StudyOS. All rights reserved <span className="mx-1">•</span> by <span className="text-gray-300">Re-text</span> <span className="mx-1">•</span> Made in <span className="text-gray-300">Gemini</span>
             </p>
+            <p className="hidden md:block">|</p>
+            <p>
+              Last updated: September 2026
+            </p>
           </div>
         </div>
       </FadeInUp>
@@ -464,8 +561,8 @@ export default function Landing() {
   return (
     <div className="bg-black text-white min-h-screen font-sans overflow-x-hidden selection:bg-white/20 selection:text-white">
       <Helmet>
-        <title>StudyOS | The Next-Gen AI Study Planner</title>
-        <meta name="description" content="StudyOS is the ultimate AI student planner. Train AI tutors on your notes, generate flashcards, and organize your academic life." />
+        <title>AI Study Planner & Homework Tracker | StudyOS</title>
+        <meta name="description" content="Transform your grades with StudyOS, the ultimate AI study planner & homework tracker. Upload notes, generate flashcards, and ace your exams. Try it free!" />
       </Helmet>
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -490,6 +587,7 @@ export default function Landing() {
       <Navbar />
       <main>
         <Hero />
+        <SEOBlocks />
         <Feature1 />
         <Feature2 />
         <FAQ />

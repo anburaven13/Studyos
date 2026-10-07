@@ -1,4 +1,5 @@
 import express from 'express';
+import mountTest from './test.js';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -67,6 +68,7 @@ const geminiAi = new GoogleGenAI({
 });
 
 const app = express();
+mountTest(app);
 
 // Required when deploying to Vercel/proxies so rate limiters use the correct client IP
 app.set('trust proxy', 1);

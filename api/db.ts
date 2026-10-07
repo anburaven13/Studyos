@@ -8,7 +8,7 @@ dotenv.config();
 export const dbContext = new AsyncLocalStorage<{ email?: string, id?: number, dbIndex?: number }>();
 
 const dbUrls = [
-  process.env.DATABASE_URL_1 || process.env.POSTGRES_URL || process.env.DATABASE_URL,
+  process.env.DATABASE_URL_1,
   process.env.DATABASE_URL_2,
   process.env.DATABASE_URL_3
 ].filter(Boolean) as string[];

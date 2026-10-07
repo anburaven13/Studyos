@@ -43,12 +43,21 @@ export default function ExamWorkspace() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h2 className="font-bold">Science Board Examination</h2>
-              <p className="text-xs text-muted-foreground">Class 10 • CBSE</p>
+              <input 
+                type="text" 
+                defaultValue="Science Board Examination"
+                className="font-bold bg-transparent outline-none border-none border-b border-transparent hover:border-border focus:border-primary px-1 -ml-1 transition-colors"
+              />
+              <p className="text-xs text-muted-foreground">{user?.class_level || 'Class 10'} • {user?.board || 'CBSE'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-lg">
-            <Clock className="w-4 h-4" /> 17 Days Left
+            <Clock className="w-4 h-4" /> 
+            <input 
+              type="date" 
+              className="bg-transparent outline-none border-none text-primary font-semibold cursor-pointer"
+              defaultValue={new Date(Date.now() + 17 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+            />
           </div>
         </div>
 

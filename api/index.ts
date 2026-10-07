@@ -70,6 +70,7 @@ const app = express();
 
 // Required when deploying to Vercel/proxies so rate limiters use the correct client IP
 app.set('trust proxy', 1);
+app.get('/api/diag', (req, res) => { res.json({ url1: process.env.DATABASE_URL_1 ? 'SET' : 'NOT_SET' }); });
 
 // JWT handled by Firebase Admin SDK
 

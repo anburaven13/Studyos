@@ -341,7 +341,7 @@ const authenticateToken = async (req: any, res: any, next: any) => {
       
       // Save this assignment to Firebase so future logins use the Optimized Path!
       try {
-        await firebaseAuth.setCustomUserClaims(decodedToken.uid, { ...decodedToken, dbIndex: userDbIndex });
+        await firebaseAuth.setCustomUserClaims(decodedToken.uid, { dbIndex: userDbIndex });
       } catch (claimErr) {
         console.error('Failed to save dbIndex custom claim', claimErr);
       }

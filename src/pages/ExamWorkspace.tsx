@@ -7,7 +7,7 @@ import { cn } from '../lib/utils';
 export default function ExamWorkspace() {
   const { examId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   
   const [activeTab, setActiveTab] = useState('syllabus');
   const [message, setMessage] = useState('');
@@ -22,7 +22,7 @@ export default function ExamWorkspace() {
   const fetchSyllabus = async (subject: string) => {
     try {
       const res = await fetch(`/api/exam-mode/syllabi?board=${user?.board || 'CBSE'}&class_level=${user?.class_level || 'Class 10'}&academic_year=2026-2027&subject=${subject}`, {
-        headers: { 'Authorization': `Bearer ${user?.token || ''}` }
+        headers: { 'Authorization': `Bearer ${token || ''}` }
       });
       if (res.ok) {
         const data = await res.json();
@@ -43,7 +43,7 @@ export default function ExamWorkspace() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.token || ''}`
+          'Authorization': `Bearer ${token || ''}`
         },
         body: JSON.stringify({
           board: user?.board || 'CBSE',

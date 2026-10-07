@@ -229,6 +229,12 @@ export const initializeDb = async () => {
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='verified_auth_times') THEN
                 ALTER TABLE users ADD COLUMN verified_auth_times JSONB DEFAULT '[]';
             END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='class_level') THEN
+                ALTER TABLE users ADD COLUMN class_level TEXT;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='board') THEN
+                ALTER TABLE users ADD COLUMN board TEXT;
+            END IF;
         END
         $$;
       `;

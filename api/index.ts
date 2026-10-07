@@ -66,9 +66,7 @@ const geminiAi = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || (() => { console.warn('WARNING: GEMINI_API_KEY not set'); return 'MISSING_KEY'; })()
 });
 
-import mountDiagnostics from './diag.js';
 const app = express();
-mountDiagnostics(app);
 
 // Required when deploying to Vercel/proxies so rate limiters use the correct client IP
 app.set('trust proxy', 1);

@@ -2362,4 +2362,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Export the app for Vercel serverless function
+import { setupExamModeRoutes } from './examModeRoutes.js';
+setupExamModeRoutes(app, sql, authenticateToken, aiLimiter);
+
+export { authenticateToken, aiLimiter };
 export default app;

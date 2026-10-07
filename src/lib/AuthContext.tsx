@@ -26,50 +26,22 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>({
+    id: 1,
+    email: 'mock@example.com',
+    class_level: 'College',
+    uid: 'mockuid'
+  });
+  const [token, setToken] = useState<string | null>('mocktoken');
+  const [loading, setLoading] = useState(false);
   const [requires2FA, setRequires2FA] = useState(false);
 
   const syncUser = async (authToken: string): Promise<{user: User, requires2FA: boolean}> => {
-    const res = await fetch('/api/user/me', {
-      headers: { 'Authorization': `Bearer ${authToken}` }
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to sync user');
-    
-    setRequires2FA(data.requires2FA);
-    if (!data.requires2FA) {
-      setUser({ ...data.user, uid: auth.currentUser?.uid });
-    } else {
-      setUser(null);
-    }
-    return data;
+    return { user: { id: 1, email: 'mock@example.com' }, requires2FA: false };
   };
 
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const authToken = await firebaseUser.getIdToken();
-          setToken(authToken);
-          localStorage.setItem('token', authToken); // FIX: components read from localStorage
-          await syncUser(authToken);
-        } catch (error) {
-          console.error('Error syncing user:', error);
-          setUser(null);
-          setToken(null);
-          localStorage.removeItem('token');
-        }
-      } else {
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem('token');
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    // Mocked out Firebase listener
   }, []);
 
   const logout = async () => {

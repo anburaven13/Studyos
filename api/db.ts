@@ -232,6 +232,72 @@ export const initializeDb = async () => {
         END
         $$;
       `;
+
+      // --- EXAM MODE TABLES ---
+      await currentSql`
+        CREATE TABLE IF NOT EXISTS exam_mode_syllabi (
+          id SERIAL PRIMARY KEY,
+          board VARCHAR(255) NOT NULL,
+          class_level VARCHAR(255) NOT NULL,
+          academic_year VARCHAR(255) NOT NULL,
+          subject VARCHAR(255) NOT NULL,
+          source_type VARCHAR(255),
+          source_url TEXT,
+          retrieved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(board, class_level, academic_year, subject)
+        );
+      `;
+
+      await currentSql`
+        CREATE TABLE IF NOT EXISTS exam_mode_chapters (
+          id SERIAL PRIMARY KEY,
+          syllabus_id INTEGER REFERENCES exam_mode_syllabi(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          order_index INTEGER DEFAULT 0
+        );
+      `;
+
+      await currentSql`
+        CREATE TABLE IF NOT EXISTS exam_mode_topics (
+          id SERIAL PRIMARY KEY,
+          chapter_id INTEGER REFERENCES exam_mode_chapters(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          order_index INTEGER DEFAULT 0
+        );
+      `;
+
+      await currentSql`
+        CREATE TABLE IF NOT EXISTS exam_mode_mastery (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          topic_id INTEGER REFERENCES exam_mode_topics(id) ON DELETE CASCADE,
+          quiz_accuracy FLOAT DEFAULT 0.0,
+          practice_accuracy FLOAT DEFAULT 0.0,
+          study_minutes INTEGER DEFAULT 0,
+          recent_performance FLOAT DEFAULT 0.0,
+          revision_due_date TIMESTAMP,
+          estimated_mastery FLOAT DEFAULT 0.0,
+          last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, topic_id)
+        );
+      `;
+
+      await currentSql`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exams' AND column_name='syllabus_id') THEN
+                ALTER TABLE exams ADD COLUMN syllabus_id INTEGER REFERENCES exam_mode_syllabi(id) ON DELETE SET NULL;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exams' AND column_name='subject') THEN
+                ALTER TABLE exams ADD COLUMN subject VARCHAR(255);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exams' AND column_name='academic_year') THEN
+                ALTER TABLE exams ADD COLUMN academic_year VARCHAR(255);
+            END IF;
+        END
+        $$;
+      `;
+
     } catch (e) {
       console.error(`Failed to initialize DB${i+1} schema. It might be suspended due to quota limits. Error:`, e);
     }

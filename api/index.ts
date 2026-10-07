@@ -290,6 +290,12 @@ const authenticateToken = async (req: any, res: any, next: any) => {
     // 1. OPTIMIZED PATH: Check if the token already contains the DB Index
     if (decodedToken.dbIndex !== undefined) {
       userDbIndex = decodedToken.dbIndex;
+      
+      // EMERGENCY HOTFIX: Force this specific user back to their real DB because of a cached bad claim
+      if (decodedToken.email === 'keya.ghosh3110@gmail.com') {
+        userDbIndex = 0;
+      }
+      
       try {
         // Query ONLY the single database shard!
         const users = await dbConnections[userDbIndex]`SELECT id, email, is_2fa_enabled, verified_auth_times FROM users WHERE email = ${decodedToken.email}`;

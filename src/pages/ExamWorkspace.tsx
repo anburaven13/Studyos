@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Book, CheckCircle, Clock, LayoutList, PenTool, MessageSquare, Send, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -14,6 +14,55 @@ export default function ExamWorkspace() {
   const [chatHistory, setChatHistory] = useState([
     { role: 'assistant', text: "Hi! I'm your Exam Coach. Based on your profile, you need to focus on Electricity today. Should we start with a quick concept review or practice questions?" }
   ]);
+  const [syllabusData, setSyllabusData] = useState<any>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [subjectInput, setSubjectInput] = useState('Science');
+  const [syllabusText, setSyllabusText] = useState('');
+
+  const fetchSyllabus = async (subject: string) => {
+    try {
+      const res = await fetch(`/api/exam-mode/syllabi?board=${user?.board || 'CBSE'}&class_level=${user?.class_level || 'Class 10'}&academic_year=2026-2027&subject=${subject}`, {
+        headers: { 'Authorization': `Bearer ${user?.token || ''}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSyllabusData(data);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+    fetchSyllabus(subjectInput);
+  }, [user?.board, user?.class_level]);
+
+  const handleSyncSyllabus = async () => {
+    if (!syllabusText.trim()) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/exam-mode/syllabi/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.token || ''}`
+        },
+        body: JSON.stringify({
+          board: user?.board || 'CBSE',
+          class_level: user?.class_level || 'Class 10',
+          academic_year: '2026-2027',
+          subject: subjectInput,
+          source_text: syllabusText
+        })
+      });
+      if (res.ok) {
+        await fetchSyllabus(subjectInput);
+        setSyllabusText('');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,31 +135,53 @@ export default function ExamWorkspace() {
                 <span className="text-xs bg-muted px-2 py-1 rounded font-medium">78% Covered</span>
               </div>
               
-              {/* Dummy Syllabus Tree */}
-              <div className="space-y-3">
-                <div className="border rounded-xl p-3">
-                  <div className="font-semibold mb-2">Physics</div>
-                  <div className="space-y-2 pl-4 border-l-2 border-muted">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Light: Reflection and Refraction</span>
-                      <span className="text-muted-foreground text-xs">85% Mastery</span>
+              {syllabusData?.chapters?.length > 0 ? (
+                <div className="space-y-3">
+                  {syllabusData.chapters.map((chapter: any) => (
+                    <div key={chapter.id} className="border rounded-xl p-3">
+                      <div className="font-semibold mb-2">{chapter.name}</div>
+                      <div className="space-y-2 pl-4 border-l-2 border-muted">
+                        {chapter.topics.map((topic: any) => (
+                          <div key={topic.id} className="flex items-center justify-between text-sm">
+                            <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> {topic.name}</span>
+                            <span className="text-muted-foreground text-xs">0% Mastery</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-sm font-medium text-amber-600 dark:text-amber-500">
-                      <span className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border-2 border-amber-500" /> Electricity</span>
-                      <span className="text-xs">31% Mastery (PRIORITY)</span>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border rounded-xl p-6 text-center space-y-4 bg-muted/20">
+                  <Book className="w-12 h-12 mx-auto text-muted-foreground opacity-50" />
+                  <div>
+                    <h4 className="font-semibold">No Syllabus Found</h4>
+                    <p className="text-sm text-muted-foreground">Paste your syllabus text below and AI will generate the chapter structure automatically.</p>
+                  </div>
+                  <div className="max-w-md mx-auto space-y-3">
+                    <input 
+                      type="text" 
+                      value={subjectInput}
+                      onChange={e => setSubjectInput(e.target.value)}
+                      placeholder="Subject Name (e.g., Science)"
+                      className="w-full bg-background border rounded-lg px-3 py-2 text-sm"
+                    />
+                    <textarea 
+                      value={syllabusText}
+                      onChange={e => setSyllabusText(e.target.value)}
+                      placeholder="Paste syllabus text here..."
+                      className="w-full bg-background border rounded-lg px-3 py-2 text-sm h-32 resize-none"
+                    />
+                    <button 
+                      onClick={handleSyncSyllabus}
+                      disabled={isSyncing || !syllabusText.trim()}
+                      className="w-full bg-primary text-primary-foreground font-semibold rounded-lg px-4 py-2 hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isSyncing ? 'Syncing...' : 'Generate Syllabus with AI'}
+                    </button>
                   </div>
                 </div>
-                <div className="border rounded-xl p-3">
-                  <div className="font-semibold mb-2">Chemistry</div>
-                  <div className="space-y-2 pl-4 border-l-2 border-muted">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Chemical Reactions</span>
-                      <span className="text-muted-foreground text-xs">92% Mastery</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           )}
           

@@ -631,6 +631,7 @@ app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) =
 });
 
 app.get('/api/user/me', authenticateToken, async (req: any, res: any) => {
+
   try {
     const users = await sql`SELECT id, email, class_level, board, is_2fa_enabled, verified_auth_times FROM users WHERE id = ${req.user.userId}`;
     if (users.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -660,6 +661,30 @@ app.get('/api/user/me', authenticateToken, async (req: any, res: any) => {
     res.status(500).json({ error: 'Failed to fetch user data' });
   }
 });
+
+app.put('/api/user/me', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { class_level, board } = req.body;
+    
+    if (class_level === undefined) {
+      return res.status(400).json({ error: 'Missing class_level' });
+    }
+
+    await sql`
+      UPDATE users 
+      SET class_level = ${class_level}, 
+          board = ${board !== undefined ? board : sql`board`} 
+      WHERE id = ${req.user.userId}
+    `;
+    
+    const updatedUsers = await sql`SELECT id, email, class_level, board FROM users WHERE id = ${req.user.userId}`;
+    res.json({ user: updatedUsers[0] });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Server error updating user' });
+  }
+});
+
 
 // --- 2FA Endpoints ---
 app.post('/api/2fa/generate', authenticateToken, authLimiter, async (req: any, res: any) => {

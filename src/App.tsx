@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './lib/AuthContext';
+import { ThemeProvider } from './components/ThemeProvider';
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 
@@ -33,35 +34,37 @@ const PageLoader = () => (
 function App() {
   return (
     <HelmetProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/onboarding" element={<Onboarding />} />
-              
-              <Route path="/" element={<Landing />} />
-              <Route path="/faq" element={<FAQ />} />
-              <Route path="/support" element={<Support />} />
-              <Route element={<ProtectedRoute />}>
-                <Route path="/app" element={<AppLayout />}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="notes" element={<Notes />} />
-                  <Route path="homework" element={<Homework />} />
-                  <Route path="planner" element={<Planner />} />
-                  <Route path="tutor" element={<Tutor />} />
-                  <Route path="exams" element={<ExamHub />} />
-                  <Route path="routines" element={<Routines />} />
-                  <Route path="workspace" element={<Workspace />} />
-                  <Route path="messages" element={<Messages />} />
-                  <Route path="genome" element={<Genome />} />
-                  <Route path="settings" element={<Settings />} />
+      <ThemeProvider defaultTheme="system" storageKey="studyos-theme">
+        <AuthProvider>
+          <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/onboarding" element={<Onboarding />} />
+                
+                <Route path="/" element={<Landing />} />
+                <Route path="/faq" element={<FAQ />} />
+                <Route path="/support" element={<Support />} />
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/app" element={<AppLayout />}>
+                    <Route index element={<Dashboard />} />
+                    <Route path="notes" element={<Notes />} />
+                    <Route path="homework" element={<Homework />} />
+                    <Route path="planner" element={<Planner />} />
+                    <Route path="tutor" element={<Tutor />} />
+                    <Route path="exams" element={<ExamHub />} />
+                    <Route path="routines" element={<Routines />} />
+                    <Route path="workspace" element={<Workspace />} />
+                    <Route path="messages" element={<Messages />} />
+                    <Route path="genome" element={<Genome />} />
+                    <Route path="settings" element={<Settings />} />
+                  </Route>
                 </Route>
-              </Route>
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </AuthProvider>
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
     </HelmetProvider>
   );
 }

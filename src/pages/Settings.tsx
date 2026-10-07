@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Settings as SettingsIcon, User, Bell, Download, Globe, Puzzle, MonitorPlay, Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { useTheme } from '../components/ThemeProvider';
 
 export default function Settings() {
   const { user, token, logout, syncUser } = useAuth();
+  const { theme, setTheme } = useTheme();
   
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [qrCode, setQrCode] = useState('');
@@ -159,7 +161,12 @@ export default function Settings() {
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" />
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={theme === 'dark'}
+                    onChange={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  />
                   <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>

@@ -22,6 +22,13 @@ type SidebarProps = {
   onClose?: () => void;
 };
 
+/**
+ * Renders the responsive sidebar with navigation, support, and settings links.
+ * @param props - Sidebar visibility and dismissal controls.
+ * @param props.isOpen - Whether the mobile sidebar is open; defaults to false.
+ * @param props.onClose - Called when the overlay or mobile close button is clicked.
+ * @returns The sidebar and its optional mobile overlay.
+ */
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { user } = useAuth();
   return (

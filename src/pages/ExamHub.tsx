@@ -38,8 +38,7 @@ export default function ExamHub() {
     );
   }
 
-  // Placeholder data if backend isn't returning yet
-  const data = dashboardData?.status ? dashboardData : {
+  const defaultData = {
     status: 'AT RISK',
     readiness: 67,
     syllabus_coverage: 78,
@@ -61,6 +60,8 @@ export default function ExamHub() {
       recommended_minutes: 45
     }
   };
+
+  const data = dashboardData?.status ? { ...defaultData, ...dashboardData } : defaultData;
 
   const primaryExam = data.exams?.[0];
 

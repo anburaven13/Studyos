@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useTheme } from '../components/ThemeProvider';
 
 export default function Settings() {
-  const { user, token, logout, syncUser } = useAuth();
+  const { user, token, logout, syncUser, updateUser } = useAuth();
   const { theme, setTheme } = useTheme();
   
   const [show2FAModal, setShow2FAModal] = useState(false);
@@ -14,6 +14,32 @@ export default function Settings() {
   const [verifyCode, setVerifyCode] = useState('');
   const [loading2FA, setLoading2FA] = useState(false);
   const [error2FA, setError2FA] = useState('');
+  
+  const [isEditingClass, setIsEditingClass] = useState(false);
+  const [classLevel, setClassLevel] = useState(user?.class_level || 'General');
+  const [isSavingClass, setIsSavingClass] = useState(false);
+
+  const handleUpdateClass = async () => {
+    setIsSavingClass(true);
+    try {
+      const res = await fetch('/api/user/me', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ class_level: classLevel })
+      });
+      if (!res.ok) throw new Error('Failed to update class');
+      
+      updateUser({ class_level: classLevel });
+      setIsEditingClass(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingClass(false);
+    }
+  };
 
   const handleSetup2FA = async () => {
     setLoading2FA(true);
@@ -92,8 +118,48 @@ export default function Settings() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 text-muted-foreground">Class Level</label>
-            <div className="inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium uppercase tracking-wider">
-              {user?.class_level || 'General'}
+            <div className="flex items-center gap-3">
+              {isEditingClass ? (
+                <>
+                  <select 
+                    value={classLevel}
+                    onChange={(e) => setClassLevel(e.target.value)}
+                    className="bg-muted border focus:border-primary rounded-lg px-3 py-1.5 outline-none text-sm font-medium"
+                  >
+                    {['General', 'Class 9', 'Class 10', 'Class 11', 'Class 12', 'College Freshman', 'College Sophomore', 'College Junior', 'College Senior', 'Graduate'].map(level => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={handleUpdateClass}
+                    disabled={isSavingClass}
+                    className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isSavingClass ? 'Saving...' : 'Save'}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsEditingClass(false);
+                      setClassLevel(user?.class_level || 'General');
+                    }}
+                    className="text-xs bg-secondary text-secondary-foreground px-3 py-1.5 rounded-lg font-medium hover:opacity-90"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium uppercase tracking-wider">
+                    {user?.class_level || 'General'}
+                  </div>
+                  <button 
+                    onClick={() => setIsEditingClass(true)}
+                    className="text-xs text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-4"
+                  >
+                    Change
+                  </button>
+                </>
+              )}
             </div>
           </div>
           

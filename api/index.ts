@@ -70,7 +70,7 @@ const app = express();
 
 // Required when deploying to Vercel/proxies so rate limiters use the correct client IP
 app.set('trust proxy', 1);
-app.get('/api/diag', (req, res) => { try { const c = await dbConnections[0]\SELECT 1 as val\; res.json({ url1: process.env.DATABASE_URL_1?.substring(0, 20) + '... (len: ' + process.env.DATABASE_URL_1?.length + ')', db0_ok: c[0].val === 1 }); } catch(e: any) { res.json({ err: e.message, url1: process.env.DATABASE_URL_1?.substring(0, 20) }); } });
+app.get('/api/diag', async (req, res) => { try { const c = await dbConnections[0]\SELECT 1 as val\\; res.json({ db0_ok: true, url: process.env.DATABASE_URL_1?.substring(0,20) }); } catch(e: any) { res.json({ err: e.message }); } });
 
 // JWT handled by Firebase Admin SDK
 

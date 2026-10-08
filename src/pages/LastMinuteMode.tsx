@@ -3,6 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Sparkles, AlertTriangle, Clock } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { cn } from '../lib/utils';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 export default function LastMinuteMode() {
   const { examId } = useParams();
@@ -152,12 +156,18 @@ export default function LastMinuteMode() {
              {chatHistory.map((msg, idx) => (
                <div key={idx} className={cn("flex w-full", msg.role === 'user' ? "justify-end" : "justify-start")}>
                  <div className={cn(
-                   "max-w-[85%] rounded-2xl px-5 py-4 text-sm leading-relaxed whitespace-pre-wrap",
+                   "max-w-[85%] rounded-2xl px-5 py-4 text-sm leading-relaxed",
                    msg.role === 'user' 
                      ? "bg-primary text-primary-foreground rounded-tr-sm" 
-                     : "bg-muted rounded-tl-sm"
+                     : "bg-muted rounded-tl-sm prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-border"
                  )}>
-                   {msg.text}
+                   {msg.role === 'user' ? (
+                     <span className="whitespace-pre-wrap">{msg.text}</span>
+                   ) : (
+                     <Markdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                       {msg.text}
+                     </Markdown>
+                   )}
                  </div>
                </div>
              ))}

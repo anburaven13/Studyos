@@ -15,7 +15,7 @@ const Homework = React.lazy(() => import('./pages/Homework'));
 const Planner = React.lazy(() => import('./pages/Planner'));
 const Tutor = React.lazy(() => import('./pages/Tutor'));
 const ExamHub = React.lazy(() => import('./pages/ExamHub'));
-const ExamWorkspace = React.lazy(() => import('./pages/ExamWorkspace'));
+const LastMinuteMode = React.lazy(() => import('./pages/LastMinuteMode'));
 const Workspace = React.lazy(() => import('./pages/Workspace'));
 const Landing = React.lazy(() => import('./pages/Landing'));
 const FAQ = React.lazy(() => import('./pages/FAQ'));
@@ -54,7 +54,7 @@ function App() {
                     <Route path="planner" element={<Planner />} />
                     <Route path="tutor" element={<Tutor />} />
                     <Route path="exams" element={<ExamHub />} />
-                    <Route path="exams/:examId" element={<ExamWorkspace />} />
+                    <Route path="exams/:examId/last-minute" element={<LastMinuteMode />} />
                     <Route path="routines" element={<Routines />} />
                     <Route path="workspace" element={<Workspace />} />
                     <Route path="messages" element={<Messages />} />

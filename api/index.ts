@@ -2376,3 +2376,18 @@ setupExamModeRoutes(app, sql, authenticateToken, aiLimiter);
 
 export { authenticateToken, aiLimiter };
 export default app;
+
+app.post('/api/last-minute/chat', authenticateToken, aiLimiter, async (req: any, res: any) => {
+  try {
+    const { examName, examDate, board, classLevel, history } = req.body;
+    if (!history || !Array.isArray(history)) return res.status(400).json({ error: 'Missing chat history' });
+    const systemInstruction = \You are a strict, efficient, and encouraging Emergency Last Minute Study Coach for a student taking the \ exam on \. The student is in \ under the \ board. Your goal is to help them cram effectively. 1. Generate a very concrete, hour-by-hour crash course study plan. 2. Be interactive, quiz them, explain concepts simply, keep them motivated. Keep responses punchy and actionable.\;
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+    const contents = history.map((msg: any) => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: contents, config: { systemInstruction, temperature: 0.7 } });
+    res.json({ reply: response.text || 'Thinking...' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to generate AI response' });
+  }
+});
+

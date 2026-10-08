@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -99,7 +99,7 @@ app.use(helmet({
   hidePoweredBy: true,
 }));
 
-// CRIT-1: Strict CORS — no wildcard in production
+// CRIT-1: Strict CORS â€” no wildcard in production
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'https://studyos-snowy.vercel.app',
   'capacitor://localhost',
@@ -609,7 +609,7 @@ app.post('/api/user/onboarding', authenticateToken, async (req: any, res: any) =
     try {
       await sendEmailWithFallback({
         to: updatedUsers[0].email,
-        subject: 'Welcome to StudyOS! 🚀',
+        subject: 'Welcome to StudyOS! ðŸš€',
         html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
             <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
@@ -1024,7 +1024,7 @@ app.get('/api/planner/merged', authenticateToken, async (req: any, res: any) => 
   }
 });
 
-// --- Sync Routine → Planner ---
+// --- Sync Routine â†’ Planner ---
 app.post('/api/routines/sync-planner', authenticateToken, async (req: any, res: any) => {
   try {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1228,7 +1228,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
                   let homeworkHtml = '';
                   if (pendingHomework.length > 0) {
                      homeworkHtml = `
-                       <h2 style="color: #4f46e5; margin-top: 24px; font-size: 18px;">📚 Pending Homework Reminder</h2>
+                       <h2 style="color: #4f46e5; margin-top: 24px; font-size: 18px;">ðŸ“š Pending Homework Reminder</h2>
                        <ul style="color: #374151; font-size: 16px; line-height: 1.5; padding-left: 20px;">
                          ${pendingHomework.map((h: any) => `<li style="margin-bottom: 8px;"><strong>${h.subject}:</strong> ${h.title} (Due: ${h.due_date})</li>`).join('')}
                        </ul>
@@ -1246,14 +1246,14 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
 
                   await sendEmailWithFallback({
                     to: routine.email,
-                    subject: `☀️ Your StudyOS Agenda for Today`,
+                    subject: `â˜€ï¸ Your StudyOS Agenda for Today`,
                     html: `
                       <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; border-radius: 12px;">
                         <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                          <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! ☀️</h1>
+                          <h1 style="color: #4f46e5; margin-top: 0;">Good Morning! â˜€ï¸</h1>
                           ${blockListHtml}
                           ${homeworkHtml}
-                          <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>— The StudyOS Automation Team</p>
+                          <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Have a super productive day!<br>â€” The StudyOS Automation Team</p>
                         </div>
                       </div>
                     `,
@@ -1384,7 +1384,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
                           </div>
                           <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
                             Keep up the great work!<br>
-                            — The StudyOS Automation Team
+                            â€” The StudyOS Automation Team
                           </p>
                         </div>
                       </div>
@@ -1436,7 +1436,7 @@ app.get('/api/cron/routines', async (req: any, res: any) => {
                           </div>
                           <p style="color: #6b7280; font-size: 14px; margin-top: 32px; text-align: center;">
                             You got this!<br>
-                            — The StudyOS Automation Team
+                            â€” The StudyOS Automation Team
                           </p>
                         </div>
                    </div>
@@ -2214,7 +2214,7 @@ app.post('/api/ai/extract-routine', authenticateToken, aiLimiter, async (req: an
       return res.status(400).json({ error: 'No data provided to extract from.' });
     }
 
-    const systemPrompt = `You are a schedule extraction engine. The user will paste raw data in any format — it could be:
+    const systemPrompt = `You are a schedule extraction engine. The user will paste raw data in any format â€” it could be:
 - A JSON object or array (possibly from a database query)
 - A SQL query result or INSERT statements
 - A CSV or table
@@ -2370,24 +2370,25 @@ if (process.env.NODE_ENV !== 'production') {
   setInterval(() => {}, 1000 * 60 * 60);
 }
 
+// --- Last Minute Mode AI Chat ---
+app.post('/api/last-minute/chat', authenticateToken, aiLimiter, async (req: any, res: any) => {
+  try {
+    const { examName, examDate, board, classLevel, history } = req.body;
+    if (!history || !Array.isArray(history)) return res.status(400).json({ error: 'Missing chat history' });
+    const systemInstruction = 'You are a strict, efficient, and encouraging Emergency Last Minute Study Coach for a student taking the ' + examName + ' exam on ' + examDate + '. The student is in ' + classLevel + ' under the ' + board + ' board. Your goal is to help them cram effectively. 1. Generate a very concrete, hour-by-hour crash course study plan focusing on high-yield topics. 2. Be interactive, quiz them, explain concepts simply, keep them motivated. 3. Use markdown lists and bold for emphasis. Keep responses punchy and actionable.';
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+    const contents = history.map((msg: any) => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: contents, config: { systemInstruction, temperature: 0.7 } });
+    res.json({ reply: response.text || 'Thinking...' });
+  } catch (error: any) {
+    console.error('Last Minute Chat Error:', error);
+    res.status(500).json({ error: 'Failed to generate AI response' });
+  }
+});
+
 // Export the app for Vercel serverless function
 import { setupExamModeRoutes } from './examModeRoutes.js';
 setupExamModeRoutes(app, sql, authenticateToken, aiLimiter);
 
 export { authenticateToken, aiLimiter };
 export default app;
-
-app.post('/api/last-minute/chat', authenticateToken, aiLimiter, async (req: any, res: any) => {
-  try {
-    const { examName, examDate, board, classLevel, history } = req.body;
-    if (!history || !Array.isArray(history)) return res.status(400).json({ error: 'Missing chat history' });
-    const systemInstruction = \You are a strict, efficient, and encouraging Emergency Last Minute Study Coach for a student taking the \ exam on \. The student is in \ under the \ board. Your goal is to help them cram effectively. 1. Generate a very concrete, hour-by-hour crash course study plan. 2. Be interactive, quiz them, explain concepts simply, keep them motivated. Keep responses punchy and actionable.\;
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-    const contents = history.map((msg: any) => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
-    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: contents, config: { systemInstruction, temperature: 0.7 } });
-    res.json({ reply: response.text || 'Thinking...' });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Failed to generate AI response' });
-  }
-});
-

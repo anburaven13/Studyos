@@ -150,7 +150,7 @@ export default function Login() {
         >
           <source src="https://files.catbox.moe/yb3y7v.mp4" type="video/mp4" />
         </video>
-        <div className="w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl relative z-10">
+        <div className="bg-[#1C1C1E]/80 backdrop-blur-xl w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl relative z-10">
           <div className="content relative z-20">
             <h1 className="text-2xl font-bold text-center mb-2 text-white">Two-Factor Authentication</h1>
             <p className="text-gray-300 text-center mb-8 text-sm drop-shadow-md">
@@ -212,7 +212,7 @@ export default function Login() {
         >
           <source src="https://files.catbox.moe/yb3y7v.mp4" type="video/mp4" />
         </video>
-        <div className="w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl relative z-10">
+        <div className="bg-[#1C1C1E]/80 backdrop-blur-xl w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl relative z-10">
           <div className="content relative z-20">
             <h1 className="text-2xl font-bold text-center mb-2 text-white">Reset Password</h1>
             <p className="text-gray-300 text-center mb-8 text-sm drop-shadow-md">
@@ -286,7 +286,7 @@ export default function Login() {
       >
         <source src="https://files.catbox.moe/yb3y7v.mp4" type="video/mp4" />
       </video>
-      <div className="w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl relative z-10">
+      <div className="bg-[#1C1C1E]/80 backdrop-blur-xl w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl relative z-10">
         <div className="content relative z-20">
           <div className="flex justify-center mb-6">
             <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">

@@ -2386,42 +2386,9 @@ app.post('/api/last-minute/chat', authenticateToken, aiLimiter, async (req: any,
   }
 });
 
-// --- Tutor History Routes ---
-app.get('/api/tutor/history', authenticateToken, async (req: any, res: any) => {
-  try {
-    const result = await sql\SELECT messages FROM tutor_history WHERE user_id = \\;
-    if (result.length > 0) {
-      res.json(result[0].messages);
-    } else {
-      res.json([]);
-    }
-  } catch (error) {
-    console.error('Fetch tutor history error:', error);
-    res.status(500).json({ error: 'Failed to fetch tutor history' });
-  }
-});
-
-app.post('/api/tutor/history', authenticateToken, express.json({ limit: '10mb' }), async (req: any, res: any) => {
-  try {
-    const { messages } = req.body;
-    await sql\
-      INSERT INTO tutor_history (user_id, messages) 
-      VALUES (\, \)
-      ON CONFLICT (user_id) DO UPDATE SET 
-        messages = EXCLUDED.messages,
-        updated_at = CURRENT_TIMESTAMP
-    \;
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Save tutor history error:', error);
-    res.status(500).json({ error: 'Failed to save tutor history' });
-  }
-});
-
 // Export the app for Vercel serverless function
 import { setupExamModeRoutes } from './examModeRoutes.js';
 setupExamModeRoutes(app, sql, authenticateToken, aiLimiter);
 
 export { authenticateToken, aiLimiter };
 export default app;
-

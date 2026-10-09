@@ -16,13 +16,23 @@ type Message = {
 };
 
 export default function Tutor() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const userContext = user?.class_level && user?.board ? `${user.class_level} - ${user.board}` : undefined;
 
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'ai', content: "Hello! I'm your StudyOS AI Tutor. I can help explain difficult concepts, solve math problems, or test your knowledge. What would you like to study today?" }
-  ]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = localStorage.getItem('tutor_messages');
+    if (saved) {
+      try { 
+        const parsed = JSON.parse(saved); 
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      { id: '1', role: 'ai', content: "Hello! I'm your StudyOS AI Tutor. I can help explain difficult concepts, solve math problems, or test your knowledge. What would you like to study today?" }
+    ];
+  });
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
@@ -54,24 +64,10 @@ export default function Tutor() {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Load and save messages to DB
+  // Save messages to localStorage
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/tutor/history`, {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(r => r.json()).then(data => {
-      if (Array.isArray(data) && data.length > 0) setMessages(data);
-      setIsLoadingHistory(false);
-    }).catch(e => { console.error('Failed to load history', e); setIsLoadingHistory(false); });
-  }, [token]);
-
-  useEffect(() => {
-    if (isLoadingHistory) return;
-    fetch(`${import.meta.env.VITE_API_URL}/api/tutor/history`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ messages })
-    }).catch(e => console.error('Failed to save history', e));
-  }, [messages, isLoadingHistory, token]);
+    localStorage.setItem('tutor_messages', JSON.stringify(messages));
+  }, [messages]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -314,6 +310,3 @@ export default function Tutor() {
     </div>
   );
 }
-
-
-

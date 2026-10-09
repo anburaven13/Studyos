@@ -289,14 +289,6 @@ export const initializeDb = async () => {
       `;
 
       await currentSql`
-        CREATE TABLE IF NOT EXISTS tutor_history (
-          user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-          messages JSONB DEFAULT '[]'::jsonb,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `;
-
-      await currentSql`
         DO $$
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exams' AND column_name='syllabus_id') THEN

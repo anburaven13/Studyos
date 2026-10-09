@@ -183,7 +183,7 @@ const Hero = () => {
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black -z-10" />
 
       {/* The Glass Pane */}
-      <div className="rounded-[40px] p-8 md:p-16 max-w-5xl mx-4 border border-white/10 shadow-2xl z-10 relative">
+      <div className="bg-[#1C1C1E]/80 backdrop-blur-xl rounded-[40px] p-8 md:p-16 max-w-5xl mx-4 border border-white/10 shadow-2xl z-10 relative">
         <div className="content relative z-20 flex flex-col items-center">
           <FadeInUp>
             <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-gray-300 mb-8 backdrop-blur-sm mx-auto w-max">

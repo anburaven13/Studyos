@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -13,6 +13,7 @@ import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import nodemailer from 'nodemailer';
 import * as ics from 'ics';
+import { connectMongo, TutorHistory } from './mongo.js';
 
 dotenv.config();
 
@@ -21,6 +22,8 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+connectMongo().catch(console.error);
 
 const getTransporters = () => {
   const transporters = [];
@@ -2389,6 +2392,36 @@ app.post('/api/last-minute/chat', authenticateToken, aiLimiter, async (req: any,
 // Export the app for Vercel serverless function
 import { setupExamModeRoutes } from './examModeRoutes.js';
 setupExamModeRoutes(app, sql, authenticateToken, aiLimiter);
+
+// --- MongoDB Tutor History Routes ---
+app.get('/api/tutor/history', authenticateToken, async (req: any, res: any) => {
+  try {
+    const record = await TutorHistory.findOne({ userId: req.user.userId });
+    if (record && record.messages) {
+      res.json(record.messages);
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('Fetch tutor history error:', error);
+    res.status(500).json({ error: 'Failed to fetch tutor history' });
+  }
+});
+
+app.post('/api/tutor/history', authenticateToken, express.json({ limit: '10mb' }), async (req: any, res: any) => {
+  try {
+    const { messages } = req.body;
+    await TutorHistory.findOneAndUpdate(
+      { userId: req.user.userId },
+      { messages, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save tutor history error:', error);
+    res.status(500).json({ error: 'Failed to save tutor history' });
+  }
+});
 
 export { authenticateToken, aiLimiter };
 export default app;

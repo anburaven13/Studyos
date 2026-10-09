@@ -59,7 +59,20 @@ export default function Tutor() {
     fetch(`${import.meta.env.VITE_API_URL}/api/tutor/history`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.json()).then(data => {
-      if (Array.isArray(data) && data.length > 0) setMessages(data);
+      if (Array.isArray(data) && data.length > 1) {
+        setMessages(data);
+      } else {
+        // Seamless migration: Check if they have old chats in their browser
+        const oldLocalHistory = localStorage.getItem('tutor_messages');
+        if (oldLocalHistory) {
+          try {
+            const parsed = JSON.parse(oldLocalHistory);
+            if (Array.isArray(parsed) && parsed.length > 1) {
+              setMessages(parsed); // This will automatically trigger the save to MongoDB!
+            }
+          } catch(e) {}
+        }
+      }
       setIsLoadingHistory(false);
     }).catch(e => { console.error('Failed to load history', e); setIsLoadingHistory(false); });
   }, [token]);

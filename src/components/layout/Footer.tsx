@@ -38,9 +38,23 @@ export default function Footer() {
             <li><Link to="/support" className="hover:text-primary transition-colors">Contact Support</Link></li>
           </ul>
         </div>
+
+        <div>
+          <h4 className="font-semibold mb-4">Legal</h4>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li><Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link></li>
+            <li><Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+            <li><Link to="/404" className="hover:text-primary transition-colors">404 Page</Link></li>
+          </ul>
+        </div>
       </div>
-      <div className="max-w-6xl mx-auto px-6 mt-12 pt-8 border-t border-border text-center text-sm text-muted-foreground">
-        &copy; {new Date().getFullYear()} StudyOS. All rights reserved.
+      <div className="max-w-6xl mx-auto px-6 mt-12 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+        <div>&copy; {new Date().getFullYear()} StudyOS. All rights reserved.</div>
+        <div className="flex items-center gap-6 text-xs">
+          <Link to="/terms" className="hover:text-primary transition-colors">Terms</Link>
+          <Link to="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+          <Link to="/404" className="hover:text-primary transition-colors">404</Link>
+        </div>
       </div>
     </footer>
   );

@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './lib/AuthContext';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -20,11 +20,22 @@ const Workspace = React.lazy(() => import('./pages/Workspace'));
 const Landing = React.lazy(() => import('./pages/Landing'));
 const FAQ = React.lazy(() => import('./pages/FAQ'));
 const Support = React.lazy(() => import('./pages/Support'));
+const Terms = React.lazy(() => import('./pages/Terms'));
+const Privacy = React.lazy(() => import('./pages/Privacy'));
 const Routines = React.lazy(() => import('./pages/Routines'));
 const Genome = React.lazy(() => import('./pages/Genome'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Messages = React.lazy(() => import('./pages/Messages'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
+
+// Ensures page scrolls to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 // A simple loading fallback
 const PageLoader = () => (
@@ -39,6 +50,7 @@ function App() {
       <ThemeProvider defaultTheme="system" storageKey="studyos-theme">
         <AuthProvider>
           <BrowserRouter>
+            <ScrollToTop />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -47,6 +59,9 @@ function App() {
                 <Route path="/" element={<Landing />} />
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/support" element={<Support />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/404" element={<NotFound />} />
                 <Route element={<ProtectedRoute />}>
                   <Route path="/app" element={<AppLayout />}>
                     <Route index element={<Dashboard />} />

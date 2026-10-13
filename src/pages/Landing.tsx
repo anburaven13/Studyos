@@ -522,17 +522,17 @@ const Footer = () => {
 
             <div className="flex flex-col gap-3">
               <span className="text-white font-medium mb-1">Product</span>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">About</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Pricing</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Changelog</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Contact</a>
+              <a href="#about" className="text-sm text-gray-400 hover:text-white transition-colors">About</a>
+              <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
+              <Link to="/faq" className="text-sm text-gray-400 hover:text-white transition-colors">FAQ</Link>
+              <Link to="/support" className="text-sm text-gray-400 hover:text-white transition-colors">Contact</Link>
             </div>
 
             <div className="flex flex-col gap-3">
               <span className="text-white font-medium mb-1">Legal</span>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Terms of service</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Privacy policy</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">404</a>
+              <Link to="/terms" className="text-sm text-gray-400 hover:text-white transition-colors">Terms of service</Link>
+              <Link to="/privacy" className="text-sm text-gray-400 hover:text-white transition-colors">Privacy policy</Link>
+              <Link to="/404" className="text-sm text-gray-400 hover:text-white transition-colors">404</Link>
             </div>
 
             <div className="flex flex-col gap-3">

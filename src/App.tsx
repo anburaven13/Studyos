@@ -24,6 +24,7 @@ const Routines = React.lazy(() => import('./pages/Routines'));
 const Genome = React.lazy(() => import('./pages/Genome'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Messages = React.lazy(() => import('./pages/Messages'));
+const NotFound = React.lazy(() => import('./pages/NotFound'));
 
 // A simple loading fallback
 const PageLoader = () => (
@@ -62,6 +63,7 @@ function App() {
                     <Route path="settings" element={<Settings />} />
                   </Route>
                 </Route>
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
           </BrowserRouter>

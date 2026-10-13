@@ -10,8 +10,7 @@ import {
   Calendar, 
   Bot, 
   GraduationCap, 
-  ArrowUpRight,
-  Compass
+  ArrowUpRight 
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
@@ -101,25 +100,25 @@ export default function NotFound() {
   ];
 
   return (
-    <div className="ios-surface dark min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans selection:bg-white/20 relative overflow-hidden">
+    <div className="w-full min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans selection:bg-white/20 relative overflow-hidden">
       <Helmet>
         <title>404 — Page Not Found | StudyOS</title>
         <meta name="description" content="The requested page could not be found." />
       </Helmet>
 
-      {/* Subtle colorful backdrops behind glass so liquid glass refracts naturally */}
+      {/* Atmospheric ambient lighting so liquid glass cards refract naturally */}
       <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-tr from-indigo-600/30 via-fuchsia-600/25 to-cyan-500/25 rounded-full blur-[110px]" />
-        <div className="absolute bottom-1/4 left-1/3 w-[600px] h-[350px] bg-gradient-to-r from-blue-600/25 via-teal-500/20 to-amber-500/20 rounded-full blur-[120px]" />
-        <div className="absolute inset-0 bg-[#09090b]/40 backdrop-blur-[1px]" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[750px] h-[450px] bg-gradient-to-tr from-indigo-600/20 via-purple-600/15 to-cyan-500/15 rounded-full blur-[130px]" />
+        <div className="absolute bottom-1/4 left-1/3 w-[650px] h-[350px] bg-gradient-to-r from-blue-600/15 via-teal-500/10 to-emerald-500/10 rounded-full blur-[140px]" />
+        <div className="absolute inset-0 bg-[#09090b]/60" />
       </div>
 
-      {/* Top Bar */}
+      {/* Top Header */}
       <header className="w-full border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md px-6 py-4 relative z-10">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link to={homeDestination} className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center group-hover:border-zinc-700 transition-colors">
-              <Brain className="w-4 h-4 text-zinc-300" />
+            <div className="w-8 h-8 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-lg flex items-center justify-center group-hover:border-white/20 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]">
+              <Brain className="w-4 h-4 text-zinc-200" />
             </div>
             <span className="text-sm font-semibold tracking-tight text-zinc-100">
               Study<span className="text-zinc-500">OS</span>
@@ -127,10 +126,7 @@ export default function NotFound() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <div
-              className="ios-glass-clear inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono"
-              style={{ color: '#fff' }}
-            >
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-xl text-[11px] font-mono text-zinc-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
               STATUS 404
             </div>
@@ -147,27 +143,20 @@ export default function NotFound() {
           animate="visible"
         >
           {/* Stark 404 Display */}
-          <motion.div variants={itemVariants} className="mb-4">
+          <motion.div variants={itemVariants} className="mb-6">
             <div className="inline-block">
-              <span
-                className="font-mono text-7xl sm:text-8xl md:text-9xl font-black tracking-tighter text-white drop-shadow-md select-none block"
-                style={{ font: '800 clamp(72px, 14vw, 110px)/1 var(--ios-font, system-ui, sans-serif)' }}
-              >
+              <span className="font-mono text-7xl sm:text-8xl md:text-9xl font-black tracking-tighter text-white drop-shadow-sm select-none block">
                 404
               </span>
             </div>
           </motion.div>
 
-          {/* Requested Path Badge using ios-glass-clear */}
-          <motion.div variants={itemVariants} className="mb-6">
-            <div
-              className="ios-glass-clear inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-mono max-w-full truncate"
-              style={{ color: '#fff' }}
-            >
-              <Compass className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-              <span className="text-white/60">GET</span>
+          {/* Requested Path Badge with Liquid Glass Refraction */}
+          <motion.div variants={itemVariants} className="mb-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/[0.05] border border-white/15 backdrop-blur-xl text-xs font-mono text-zinc-300 max-w-full truncate shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),0_4px_16px_rgba(0,0,0,0.3)]">
+              <span className="text-zinc-400">GET</span>
               <span className="text-white truncate font-medium">{location.pathname}</span>
-              <span className="text-red-400 font-medium">-&gt; NOT_FOUND</span>
+              <span className="text-red-400 font-medium">-&gt; 404 NOT_FOUND</span>
             </div>
           </motion.div>
 
@@ -181,25 +170,21 @@ export default function NotFound() {
             </p>
           </motion.div>
 
-          {/* Action Buttons using Liquid Glass */}
-          <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center gap-3.5 mb-12">
-            {/* Prominent Tinted Liquid Glass for Primary Action */}
+          {/* Action Buttons */}
+          <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center gap-3 mb-12">
+            {/* Prominent Action Button */}
             <Link
               to={homeDestination}
-              className="ios-glass-prominent inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-medium transition-transform active:scale-[0.98]"
-              style={{
-                color: '#fff',
-                font: '600 14px/20px var(--ios-font, system-ui, sans-serif)',
-              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 text-sm font-medium active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(255,255,255,0.18),inset_0_1px_1px_rgba(255,255,255,0.8)]"
             >
               <Home className="w-4 h-4" />
-              <span>{user ? 'Return to Dashboard' : 'Return Home'}</span>
-              <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] bg-white/20 text-white rounded font-mono">
+              {user ? 'Return to Dashboard' : 'Return Home'}
+              <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] bg-zinc-200 text-zinc-800 rounded font-mono">
                 H
               </kbd>
             </Link>
 
-            {/* Regular Liquid Glass for Secondary Action */}
+            {/* Liquid Glass Secondary Button */}
             <button
               onClick={() => {
                 if (window.history.length > 1) {
@@ -208,21 +193,17 @@ export default function NotFound() {
                   navigate(homeDestination);
                 }
               }}
-              className="ios-glass inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-medium transition-transform active:scale-[0.98]"
-              style={{
-                color: 'var(--ios-glass-label, #fff)',
-                font: '600 14px/20px var(--ios-font, system-ui, sans-serif)',
-              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-zinc-200 hover:text-white border border-white/10 hover:border-white/20 backdrop-blur-xl text-sm font-medium active:scale-[0.98] transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Go Back</span>
-              <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] bg-white/10 text-white/70 rounded font-mono">
+              <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] bg-white/10 border border-white/10 text-zinc-300 rounded font-mono">
                 ESC
               </kbd>
             </button>
           </motion.div>
 
-          {/* Fast Route Directory using Liquid Glass */}
+          {/* Fast Route Directory with Liquid Glass Cards */}
           <motion.div variants={itemVariants} className="border-t border-white/10 pt-8 text-left">
             <div className="flex items-center justify-between mb-3 px-1">
               <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-semibold">
@@ -240,20 +221,14 @@ export default function NotFound() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className="ios-glass p-3.5 rounded-2xl flex items-center justify-between group transition-all active:scale-[0.98]"
-                    style={{
-                      color: 'var(--ios-glass-label, #fff)',
-                    }}
+                    className="p-3.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-white/20 backdrop-blur-xl flex items-center justify-between group transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.25)] hover:scale-[1.01] active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white/90 group-hover:scale-105 transition-transform">
+                      <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-zinc-200 group-hover:scale-105 transition-transform shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
-                        <div
-                          className="text-xs font-semibold text-white group-hover:text-white transition-colors"
-                          style={{ font: '600 13px/18px var(--ios-font, system-ui, sans-serif)' }}
-                        >
+                        <div className="text-xs font-medium text-zinc-100 group-hover:text-white transition-colors">
                           {item.label}
                         </div>
                         <div className="text-[11px] text-zinc-400">
@@ -261,7 +236,7 @@ export default function NotFound() {
                         </div>
                       </div>
                     </div>
-                    <ArrowUpRight className="w-3.5 h-3.5 text-white/50 group-hover:text-white transition-colors" />
+                    <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
                   </Link>
                 );
               })}
@@ -272,7 +247,7 @@ export default function NotFound() {
 
       {/* Minimal Footer */}
       <footer className="border-t border-white/5 py-4 px-6 text-center text-xs font-mono text-zinc-500 relative z-10">
-        StudyOS &copy; {new Date().getFullYear()} &middot; Press [ESC] to go back or [H] for home
+        StudyOS &copy; {new Date().getFullYear()} &middot; System Route Resolver
       </footer>
     </div>
   );

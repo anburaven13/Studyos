@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { Sparkles, Loader2, Check, Trash, Folder, FileText } from 'lucide-react';
 import { simulateAiResponse, generateFlashcards, extractTextFromDocument } from '../lib/aiService';
@@ -541,7 +542,7 @@ export default function Notes() {
                   <h2 className="text-3xl md:text-4xl font-bold tracking-tight">{activeNote.title || 'Untitled Note'}</h2>
                 </div>
                 <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-primary">
-                  <Markdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{activeNote.content}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, rehypeKatex]}>{activeNote.content}</Markdown>
                 </div>
               </div>
             )}

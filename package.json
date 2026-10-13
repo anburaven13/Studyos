@@ -42,6 +42,7 @@
     "react-router-dom": "^7.18.1",
     "recharts": "^3.10.1",
     "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "resend": "^6.24.0",

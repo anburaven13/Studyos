@@ -25,10 +25,35 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const CACHED_USER_KEY = 'studyos_cached_user';
+const CACHED_TOKEN_KEY = 'token';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(CACHED_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  });
+
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem(CACHED_USER_KEY);
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem(CACHED_TOKEN_KEY);
+    } catch {
+      return true;
+    }
+  });
+
   const [requires2FA, setRequires2FA] = useState(false);
 
   const syncUser = async (authToken: string): Promise<{user: User, requires2FA: boolean}> => {
@@ -39,9 +64,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!res.ok) throw new Error(data.error || 'Failed to sync user');
     
     setRequires2FA(data.requires2FA);
-    if (!data.requires2FA) {
-      setUser({ ...data.user, uid: auth.currentUser?.uid });
-    } else {
+    if (!data.requires2FA && data.user) {
+      const fullUser = { ...data.user, uid: auth.currentUser?.uid };
+      setUser(fullUser);
+      try {
+        localStorage.setItem(CACHED_USER_KEY, JSON.stringify(fullUser));
+      } catch (e) {
+        console.error('Failed to cache user profile in localStorage:', e);
+      }
+    } else if (data.requires2FA) {
       setUser(null);
     }
     return data;
@@ -53,18 +84,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const authToken = await firebaseUser.getIdToken();
           setToken(authToken);
-          localStorage.setItem('token', authToken); // FIX: components read from localStorage
+          localStorage.setItem('token', authToken);
           await syncUser(authToken);
         } catch (error) {
           console.error('Error syncing user:', error);
           setUser(null);
           setToken(null);
           localStorage.removeItem('token');
+          localStorage.removeItem(CACHED_USER_KEY);
         }
       } else {
         setUser(null);
         setToken(null);
         localStorage.removeItem('token');
+        localStorage.removeItem(CACHED_USER_KEY);
       }
       setLoading(false);
     });
@@ -77,10 +110,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
+    localStorage.removeItem(CACHED_USER_KEY);
   };
 
   const updateUser = (data: Partial<User>) => {
-    setUser(prev => prev ? { ...prev, ...data } : null);
+    setUser(prev => {
+      const updated = prev ? { ...prev, ...data } : null;
+      if (updated) {
+        try {
+          localStorage.setItem(CACHED_USER_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
   };
 
   return (

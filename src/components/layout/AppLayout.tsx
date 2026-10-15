@@ -47,7 +47,7 @@ export default function AppLayout() {
             <Menu className="w-6 h-6" />
           </button>
           <span className="font-bold tracking-tight flex items-center space-x-2">
-            <div className="w-6 h-6 rounded bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold">S</div>
+            <img src="/favicon.svg" alt="StudyOS" className="w-6 h-6 rounded-md object-contain shadow-sm border border-white/10" />
             <span>StudyOS</span>
           </span>
           <button onClick={() => navigate('/app/settings')} className="p-2 -mr-2 text-muted-foreground hover:text-foreground transition-colors" title="Settings">

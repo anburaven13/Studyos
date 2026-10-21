@@ -20,17 +20,19 @@ export default function Login() {
   const [showForgot, setShowForgot] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   
-  // Only render and stream video on PC / desktop screens (>= 768px)
+  // Only render and stream video on real PC / desktop screens (>= 768px and non-mobile app)
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth >= 768;
+      const isMobileApp = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || !!(window as any).Capacitor?.isNativePlatform?.();
+      return window.innerWidth >= 768 && !isMobileApp;
     }
     return false;
   });
 
   useEffect(() => {
     const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 768);
+      const isMobileApp = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || !!(window as any).Capacitor?.isNativePlatform?.();
+      setIsDesktop(window.innerWidth >= 768 && !isMobileApp);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);

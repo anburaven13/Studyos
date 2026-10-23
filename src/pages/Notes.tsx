@@ -4,7 +4,10 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Loader2, Check, Trash, Folder, FileText } from 'lucide-react';
+import { Sparkles, Loader2, Check, Trash, Folder, FileText, Brain } from 'lucide-react';
+import SpacedReviewModal from '../components/flashcards/SpacedReviewModal';
+import { createStudyCard, loadFSRSCards, saveFSRSCards } from '../lib/spacedRepetition';
+import type { StudyCard } from '../lib/spacedRepetition';
 import { simulateAiResponse, generateFlashcards, extractTextFromDocument } from '../lib/aiService';
 import { cn } from '../lib/utils';
 import { useAuth } from '../lib/AuthContext';
@@ -19,6 +22,8 @@ export default function Notes() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [summary, setSummary] = useState('');
   const [flashcards, setFlashcards] = useState<{front: string, back: string}[]>([]);
+  const [fsrsCards, setFsrsCards] = useState<StudyCard[]>([]);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Saving...'>('Saved');
   
   // Quiz State
@@ -56,6 +61,14 @@ export default function Notes() {
       }
     };
     fetchNotes();
+    // Load saved FSRS cards
+    if (activeNoteId && activeNoteId !== 'new') {
+      const saved = loadFSRSCards(activeNoteId.toString());
+      if (saved && saved.length > 0) {
+        setFsrsCards(saved);
+        setFlashcards(saved.map(s => ({ front: s.front, back: s.back })));
+      }
+    }
   }, []);
 
   // Track latest note for unmount saving
@@ -194,6 +207,11 @@ export default function Notes() {
     setQuizActive(false);
     const result = await generateFlashcards(activeNote.content, userContext);
     setFlashcards(result);
+    if (result && result.length > 0) {
+      const newFsrs = result.map(fc => createStudyCard(fc.front, fc.back, activeNote.id.toString()));
+      setFsrsCards(newFsrs);
+      saveFSRSCards(activeNote.id.toString(), newFsrs);
+    }
     setIsGenerating(false);
   };
 
@@ -616,7 +634,17 @@ export default function Notes() {
 
           {!isGenerating && flashcards.length > 0 && (
             <div className="space-y-4">
-              <p className="font-semibold text-primary">Generated Flashcards</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold text-primary text-sm sm:text-base">Flashcards ({flashcards.length})</p>
+                <button
+                  onClick={() => setIsReviewModalOpen(true)}
+                  className="px-2.5 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-sm"
+                  title="Start FSRS scientific spaced repetition review session"
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>FSRS Review</span>
+                </button>
+              </div>
               {flashcards.map((fc, i) => (
                 <div key={i} className="bg-card border p-4 rounded-xl shadow-sm">
                   <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Front</p>
@@ -629,6 +657,14 @@ export default function Notes() {
           )}
         </div>
       </div>
+      <SpacedReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        noteId={activeNote.id.toString()}
+        noteTitle={activeNote.title}
+        cards={fsrsCards.length > 0 ? fsrsCards : flashcards.map(fc => createStudyCard(fc.front, fc.back, activeNote.id.toString()))}
+        onUpdateCards={(updated) => setFsrsCards(updated)}
+      />
     </div>
   );
 }

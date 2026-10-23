@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import StudyTimer from './StudyTimer';
@@ -6,21 +6,29 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu } from 'lucide-react';
 import UsernamePromptModal from './UsernamePromptModal';
+import CommandPalette from '../CommandPalette';
+import InteractiveGrapher from '../math/InteractiveGrapher';
 
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMathGrapherOpen, setIsMathGrapherOpen] = useState(false);
+  const [mathEquation, setMathEquation] = useState<string | undefined>();
 
   useHotkeys('ctrl+n, meta+n', (e) => {
     e.preventDefault();
     navigate('/app/notes');
   });
 
-  useHotkeys('ctrl+k, meta+k', (e) => {
-    e.preventDefault();
-    navigate('/app/tutor');
-  });
+  useEffect(() => {
+    const handleOpenMath = (e: any) => {
+      setMathEquation(e.detail?.initialEquation);
+      setIsMathGrapherOpen(true);
+    };
+    window.addEventListener('studyos:open-math-grapher', handleOpenMath);
+    return () => window.removeEventListener('studyos:open-math-grapher', handleOpenMath);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row relative selection:bg-primary/30">
@@ -70,6 +78,12 @@ export default function AppLayout() {
       </main>
       <StudyTimer />
       <UsernamePromptModal />
+      <CommandPalette onOpenMathGrapher={() => setIsMathGrapherOpen(true)} />
+      <InteractiveGrapher 
+        isOpen={isMathGrapherOpen} 
+        onClose={() => setIsMathGrapherOpen(false)} 
+        initialEquation={mathEquation}
+      />
     </div>
   );
 }

@@ -154,7 +154,7 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
     }
   ], [navigate, onOpenMathGrapher]);
 
-  // Additional searchable actions
+  // Additional searchable actions (Pure Monochrome)
   const extraActions = useMemo(() => [
     {
       id: 'theme',
@@ -329,45 +329,19 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-md select-none overflow-y-auto animate-in fade-in duration-200"
       onClick={() => setOpen(false)}
     >
-      {/* =========================================================================
-          TIER 1: BASELAYER (The Vibrant Backdrop)
-          A color-rich ambient light field that provides luminous chromatic photons
-          for the liquid glass layers to refract, bend, and pull through.
-          ========================================================================= */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {/* Deep ambient backdrop blur */}
-        <div className="absolute inset-0 bg-black/45 backdrop-blur-[40px]" />
-        
-        {/* Dynamic Chromatic Spectral Fields (Apple VisionOS / macOS Ambient Physics) */}
-        <div className="absolute top-[28%] left-[32%] w-[460px] h-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-tr from-indigo-600/35 via-purple-600/30 to-pink-500/25 blur-[120px] mix-blend-screen opacity-70" />
-        <div className="absolute bottom-[28%] right-[32%] w-[480px] h-[480px] translate-x-1/3 translate-y-1/3 rounded-full bg-gradient-to-bl from-cyan-500/30 via-blue-600/25 to-emerald-500/20 blur-[130px] mix-blend-screen opacity-65" />
-        
-        {/* Peripheral optical vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_35%,_rgba(0,0,0,0.6)_100%)]" />
-      </div>
-
-      {/* SVG Physics Definitions: Optical Refractive Displacement Mesh */}
-      <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
-        <defs>
-          <filter id="apple-liquid-glass-lens" x="-20%" y="-20%" width="140%" height="140%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" result="glassWarp" />
-            <feDisplacementMap in="SourceGraphic" in2="glassWarp" scale="3" xChannelSelector="R" yChannelSelector="G" result="refractedLight" />
-          </filter>
-        </defs>
-      </svg>
+      {/* Soft Vignette across screen edges */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_transparent_20%,_rgba(0,0,0,0.45)_100%)]" />
 
       {/* Main Glass HUD Container */}
       <div 
         className="relative z-10 flex flex-col items-center w-full max-w-2xl my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* =========================================================================
-            TOP SEARCH BAR (Liquid Glass Capsule)
-            ========================================================================= */}
-        <div className="w-full max-w-md mx-auto mb-5 flex items-center px-4 py-2.5 rounded-full border border-white/[0.12] bg-white/[0.02] backdrop-blur-[42px] backdrop-saturate-[220%] backdrop-contrast-[110%] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14),inset_0_0_0_1px_rgba(255,255,255,0.06)] transition-all focus-within:border-white/[0.25] focus-within:bg-white/[0.04]">
+        {/* Top Search Bar (Liquid Glass Capsule) */}
+        <div className="w-full max-w-md mx-auto mb-5 flex items-center px-4 py-2.5 rounded-full border border-white/20 bg-white/[0.03] backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_8px_32px_rgba(0,0,0,0.3)] transition-all focus-within:border-white/50 focus-within:bg-white/[0.06]">
           <Search className="w-4 h-4 text-white/70 mr-3 flex-shrink-0" />
           <input
             ref={inputRef}
@@ -392,7 +366,7 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
           ) : (
             <button
               onClick={() => setOpen(false)}
-              className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.12] text-[10px] font-mono text-white/80 hover:text-white transition-all cursor-pointer active:scale-95 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]"
+              className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/20 text-[10px] font-mono text-white/80 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95"
               title="Close (Esc)"
               aria-label="Close command palette"
             >
@@ -402,11 +376,9 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
           )}
         </div>
 
-        {/* =========================================================================
-            VIEW 1: SEARCH RESULTS (When query is active)
-            ========================================================================= */}
+        {/* VIEW 1: SEARCH RESULTS (When query is active) */}
         {search.trim().length > 0 ? (
-          <div className="w-full max-w-lg bg-black/40 border border-white/[0.12] rounded-2xl backdrop-blur-[42px] backdrop-saturate-[220%] p-2 max-h-[380px] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)]">
+          <div className="w-full max-w-lg bg-black/40 border border-white/20 rounded-2xl shadow-2xl backdrop-blur-2xl backdrop-saturate-150 p-2 max-h-[380px] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
             {filteredItems.length > 0 ? (
               <div className="space-y-1">
                 {filteredItems.map((item, idx) => {
@@ -420,11 +392,11 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
                       className={cn(
                         "w-full flex items-center px-4 py-3 rounded-xl text-left transition-all cursor-pointer",
                         isSelected 
-                          ? "bg-white/[0.10] border border-white/[0.20] scale-[1.01] text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15)]" 
-                          : "hover:bg-white/[0.04] border border-transparent text-white/70"
+                          ? "bg-white/[0.12] border border-white/30 shadow-md scale-[1.01] text-white" 
+                          : "hover:bg-white/[0.05] border border-transparent text-white/70"
                       )}
                     >
-                      <div className="p-2 rounded-lg bg-white/[0.05] border border-white/[0.12] mr-3.5 text-white">
+                      <div className="p-2 rounded-lg bg-white/[0.05] border border-white/15 mr-3.5 text-white">
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -441,7 +413,7 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
                 <p className="text-sm text-white/60 mb-3">No direct matching commands found.</p>
                 <button
                   onClick={() => executeAction(() => navigate(`/app/tutor?prompt=${encodeURIComponent(search)}`))}
-                  className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.12] text-white text-sm font-medium transition-all shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]"
+                  className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/20 text-white text-sm font-medium transition-all"
                 >
                   <Sparkles className="w-4 h-4 text-white" />
                   <span>Ask AI Tutor: "{search}"</span>
@@ -451,45 +423,40 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
             )}
           </div>
         ) : (
-          /* =========================================================================
-              VIEW 2: CONTINUOUS APPLE LIQUID GLASS RADIAL DIAL RING
-              ========================================================================= */
+          /* VIEW 2: CONTINUOUS LIQUID GLASS DIAL RING (With thick water drops spread over the slide) */
           <div className="relative flex items-center justify-center w-[320px] h-[320px] sm:w-[420px] sm:h-[420px]">
-            {/* The Continuous Liquid Glass Annular Guide Ring */}
-            <div className="absolute inset-0 m-auto w-[290px] h-[290px] sm:w-[370px] sm:h-[370px] rounded-full border border-white/[0.10] bg-white/[0.015] backdrop-blur-[42px] backdrop-saturate-[220%] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_0_0_1px_rgba(255,255,255,0.04)] pointer-events-none">
-              {/* Internal Concentric Precision Chamfers */}
-              <div className="absolute inset-2 rounded-full border border-white/[0.06] pointer-events-none" />
-              <div className="absolute inset-[32%] rounded-full border border-white/[0.10] pointer-events-none shadow-[inset_0_1px_0_0_rgba(255,255,255,0.10)]" />
+            {/* The Unified Liquid Glass Annular Track (Middle Compositing Layer) */}
+            <div className="absolute inset-0 m-auto w-[290px] h-[290px] sm:w-[370px] sm:h-[370px] rounded-full border border-white/25 bg-white/[0.02] backdrop-blur-xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),0_8px_32px_rgba(0,0,0,0.25)] pointer-events-none">
+              {/* Internal Concentric Glass Precision Etched Chamfers */}
+              <div className="absolute inset-2 rounded-full border border-white/10 pointer-events-none" />
+              <div className="absolute inset-[32%] rounded-full border border-white/25 pointer-events-none shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.35)]" />
             </div>
 
-            {/* Sub-Pixel Fine Crosshair Axes */}
-            <div className="absolute w-[0.5px] h-[280px] sm:h-[360px] bg-gradient-to-b from-transparent via-white/[0.15] to-transparent pointer-events-none" />
-            <div className="absolute h-[0.5px] w-[280px] sm:w-[360px] bg-gradient-to-r from-transparent via-white/[0.15] to-transparent pointer-events-none" />
+            {/* Subtle Crosshair Axis Lines */}
+            <div className="absolute w-[1px] h-[280px] sm:h-[360px] bg-gradient-to-b from-transparent via-white/20 to-transparent pointer-events-none" />
+            <div className="absolute h-[1px] w-[280px] sm:w-[360px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
 
-            {/* Central Optical Lens Hub with Cross (Click or ESC to Exit) */}
+            {/* Central Glass Lens Hub with Cross (Click or ESC to Exit) */}
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute z-30 w-20 h-20 sm:w-24 sm:h-24 rounded-full border border-white/[0.14] bg-white/[0.02] backdrop-blur-[44px] backdrop-saturate-[240%] backdrop-contrast-[112%] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.15),inset_0_0_0_1px_rgba(255,255,255,0.06)] flex flex-col items-center justify-center cursor-pointer group hover:border-white/[0.28] hover:scale-105 transition-all duration-200 active:scale-95"
+              className="absolute z-30 w-20 h-20 sm:w-24 sm:h-24 rounded-full border border-white/40 bg-gradient-to-b from-white/15 via-white/[0.04] to-transparent backdrop-blur-2xl backdrop-saturate-200 shadow-[inset_0_2px_2px_rgba(255,255,255,0.6),inset_0_-1px_1px_rgba(0,0,0,0.2),0_12px_32px_rgba(0,0,0,0.35)] flex flex-col items-center justify-center cursor-pointer group hover:border-white/70 hover:scale-105 transition-all duration-200 active:scale-95"
               title="Click or press ESC to close"
               aria-label="Exit Command Dial"
             >
-              {/* Directional 12% Specularity Rim Highlight */}
-              <div className="absolute top-0 left-0 right-0 h-1/2 rounded-t-full bg-gradient-to-b from-white/[0.12] to-transparent pointer-events-none" />
-
-              {/* Optical Convex Rim Ring */}
-              <div className="absolute inset-1 rounded-full border border-white/[0.08] pointer-events-none" />
+              {/* Glass Top Bevel Reflection */}
+              <div className="absolute top-0 left-0 right-0 h-1/2 rounded-t-full bg-gradient-to-b from-white/30 via-white/10 to-transparent pointer-events-none" />
 
               {hoveredTile ? (
                 <div className="flex flex-col items-center animate-in fade-in zoom-in-90 duration-150 px-1 relative z-10 text-white">
-                  <hoveredTile.icon className="w-6 h-6 sm:w-7 sm:h-7 mb-0.5 text-white stroke-[1.8] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+                  <hoveredTile.icon className="w-6 h-6 sm:w-7 sm:h-7 mb-0.5 text-white stroke-[1.8] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
                   <span className="text-[10px] font-mono font-bold tracking-tight text-white/95 truncate max-w-[70px]">
                     [{hoveredTile.num}] OPEN
                   </span>
                 </div>
               ) : (
                 <div className="flex flex-col items-center group-hover:scale-105 transition-transform duration-200 relative z-10">
-                  <X className="w-6 h-6 sm:w-7 sm:h-7 text-white/95 group-hover:text-white group-hover:rotate-90 transition-all duration-300 stroke-[1.8] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+                  <X className="w-6 h-6 sm:w-7 sm:h-7 text-white/95 group-hover:text-white group-hover:rotate-90 transition-all duration-300 stroke-[1.8] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
                   <span className="text-[9px] font-mono tracking-widest text-white/60 group-hover:text-white uppercase mt-0.5 font-semibold">
                     ESC
                   </span>
@@ -497,8 +464,8 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
               )}
             </button>
 
-            {/* 8 Pure Liquid Glass Segmented Slides (True Optical Refractive Meshes) */}
-            {dialItems.map((tile, index) => {
+            {/* 8 Thick Round-Corner Liquid Glass Slides */}
+            {dialItems.map((tile) => {
               const angleRad = (tile.angle * Math.PI) / 180;
               const x = Math.round(Math.cos(angleRad) * radius);
               const y = Math.round(Math.sin(angleRad) * radius);
@@ -516,38 +483,32 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
                     transform: `translate(${x}px, ${y}px)`
                   }}
                   className={cn(
-                    "absolute z-20 flex flex-col items-center justify-center overflow-hidden",
+                    "absolute z-20 flex flex-col items-center justify-center overflow-visible",
                     "w-16 h-16 sm:w-[88px] sm:h-[88px] p-2 rounded-2xl",
-                    // TIER 4: Precise 0.5px-1px Sub-Pixel Hairline Border
-                    "border border-white/[0.12] hover:border-white/[0.28]",
-                    // TIER 2: Deep Gaussian Refraction (42px blur, 240% saturation boost)
-                    "bg-white/[0.02] hover:bg-white/[0.05]",
-                    "backdrop-blur-[42px] backdrop-saturate-[240%] backdrop-contrast-[112%]",
-                    // TIER 4: 8-15% White Specularity Rim Highlight (NO Drop Shadows)
-                    "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14),inset_0_0_0_1px_rgba(255,255,255,0.06)]",
+                    "border border-white/30 hover:border-white/60",
+                    "bg-gradient-to-b from-white/12 via-white/[0.04] to-transparent",
+                    "backdrop-blur-2xl backdrop-saturate-200",
+                    "shadow-[inset_0_1.5px_1px_0_rgba(255,255,255,0.5),inset_0_-1px_1px_0_rgba(0,0,0,0.2),0_12px_28px_-6px_rgba(0,0,0,0.35)]",
                     "transition-all duration-200 cursor-pointer group text-white",
                     isHovered 
-                      ? "scale-[1.04] border-white/[0.35] bg-white/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.10)] z-40" 
-                      : ""
+                      ? "scale-105 border-white/80 bg-gradient-to-b from-white/20 via-white/[0.08] to-white/[0.02] shadow-[inset_0_2px_2px_rgba(255,255,255,0.7),0_16px_36px_-6px_rgba(0,0,0,0.45)] z-40" 
+                      : "hover:scale-[1.02]"
                   )}
                   title={`${tile.fullTitle} (Press ${tile.num})`}
                 >
-                  {/* TIER 4: Directional Simulated Specular Highlight (12% Opacity Rim) */}
-                  <div className="absolute top-0 left-0 right-0 h-[40%] bg-gradient-to-b from-white/[0.12] to-transparent pointer-events-none rounded-t-2xl" />
+                  {/* Thick Curved Glass Bevel Highlight */}
+                  <div className="absolute top-0 left-0 right-0 h-[45%] bg-gradient-to-b from-white/30 via-white/10 to-transparent pointer-events-none rounded-t-2xl" />
 
-                  {/* Refractive Optical Curvature Ring (Physical Edge Warp) */}
-                  <div className="absolute inset-1 rounded-xl border border-white/[0.06] pointer-events-none" />
-
-                  {/* Hotkey Number Pill: Dynamic Vibrancy blend */}
-                  <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-4 h-4 rounded-full bg-white/[0.08] text-[9px] font-mono font-bold text-white/90 flex items-center justify-center border border-white/[0.15] group-hover:text-white group-hover:border-white/[0.30] z-20 shadow-[inset_0_0.5px_0_0_rgba(255,255,255,0.15)]">
+                  {/* Hotkey Number Badge */}
+                  <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-4 h-4 rounded-full bg-black/40 text-[9px] font-mono font-bold text-white/90 flex items-center justify-center border border-white/30 group-hover:text-white group-hover:border-white/60 z-20 shadow-sm">
                     {tile.num}
                   </span>
 
-                  {/* TIER 3: Top Layer Icon (High-Contrast Sharp Vibrancy) */}
-                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white transition-transform group-hover:scale-110 relative z-10 stroke-[1.8] drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]" />
+                  {/* High-Contrast Sharp Icon (Top Layer Dynamic Vibrancy) */}
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white transition-transform group-hover:scale-110 relative z-10 stroke-[1.8] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
 
-                  {/* TIER 3: Typography (Razor-Sharp Top Layer) */}
-                  <span className="text-[9px] sm:text-[10px] font-medium text-white/95 group-hover:text-white text-center mt-1 truncate max-w-full px-0.5 leading-tight relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+                  {/* Sharp Typography (Top Layer) */}
+                  <span className="text-[9px] sm:text-[10px] font-medium text-white/95 group-hover:text-white text-center mt-1 truncate max-w-full px-0.5 leading-tight relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                     {tile.label}
                   </span>
                 </button>
@@ -557,7 +518,7 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
         )}
 
         {/* Dynamic Detail Bar below Dial (Liquid Glass Pill) */}
-        <div className="mt-3 text-center min-h-[32px] px-4 py-1.5 rounded-full border border-white/[0.12] bg-white/[0.02] backdrop-blur-[42px] backdrop-saturate-[220%] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_0_0_1px_rgba(255,255,255,0.05)] text-xs text-white/70">
+        <div className="mt-3 text-center min-h-[32px] px-4 py-1.5 rounded-full border border-white/20 bg-white/[0.03] backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)] text-xs text-white/70">
           {hoveredTile ? (
             <p className="text-white animate-in fade-in duration-100">
               <span className="font-semibold text-white">[{hoveredTile.num}] {hoveredTile.fullTitle}:</span>{' '}
@@ -565,9 +526,9 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
             </p>
           ) : (
             <p className="space-x-3 text-[11px] font-mono text-white/70">
-              <span>Press <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-white">1-8</kbd> to jump</span>
+              <span>Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white">1-8</kbd> to jump</span>
               <span>•</span>
-              <span>Click <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-white">ESC</kbd> to exit</span>
+              <span>Click <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-white">ESC</kbd> to exit</span>
               <span>•</span>
               <span>Type to search</span>
             </p>
@@ -582,7 +543,7 @@ export default function CommandPalette({ onOpenMathGrapher }: CommandPaletteProp
               <button
                 key={act.id}
                 onClick={() => executeAction(act.action)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.12] text-xs text-white/80 hover:text-white transition-all backdrop-blur-[40px] cursor-pointer active:scale-95 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.08] border border-white/20 text-xs text-white/80 hover:text-white transition-all backdrop-blur-xl cursor-pointer active:scale-95 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]"
               >
                 <Icon className="w-3.5 h-3.5 text-white stroke-[1.8]" />
                 <span className="hidden sm:inline font-normal">{act.label}</span>

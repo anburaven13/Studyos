@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Calendar, Clock, FileText, CheckCircle2, BarChart2, Loader2 } from 'lucide-react';
 import { TextEffect } from '@/components/motion-primitives/text-effect';
+import { DashboardSkeleton } from '../components/skeletons/PageSkeletons';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 interface Task {
@@ -104,10 +105,15 @@ export default function Dashboard() {
           fetch('/api/analytics', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
-        const exams = examsRes.ok ? await examsRes.json() : [];
-        const homework = homeworkRes.ok ? await homeworkRes.json() : [];
-        const planner = plannerRes.ok ? await plannerRes.json() : [];
-        const analytics = analyticsRes.ok ? await analyticsRes.json() : [];
+        const examsRaw = examsRes.ok ? await examsRes.json() : [];
+        const homeworkRaw = homeworkRes.ok ? await homeworkRes.json() : [];
+        const plannerRaw = plannerRes.ok ? await plannerRes.json() : [];
+        const analyticsRaw = analyticsRes.ok ? await analyticsRes.json() : [];
+
+        const exams = Array.isArray(examsRaw) ? examsRaw : (Array.isArray(examsRaw?.data) ? examsRaw.data : []);
+        const homework = Array.isArray(homeworkRaw) ? homeworkRaw : (Array.isArray(homeworkRaw?.data) ? homeworkRaw.data : []);
+        const planner = Array.isArray(plannerRaw) ? plannerRaw : (Array.isArray(plannerRaw?.data) ? plannerRaw.data : []);
+        const analytics = Array.isArray(analyticsRaw) ? analyticsRaw : (Array.isArray(analyticsRaw?.data) ? analyticsRaw.data : []);
 
         const activeHomework = homework.filter((h: Task) => !h.completed);
 
@@ -133,6 +139,10 @@ export default function Dashboard() {
     };
     fetchDashboardData();
   }, []);
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">

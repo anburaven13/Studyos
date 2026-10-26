@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Check, Circle, Sparkles, Loader2, X, Trash } from 'lucide-react';
 import { simulateAiResponse } from '../lib/aiService';
 import { Helmet } from 'react-helmet-async';
+import { HomeworkSkeleton } from '../components/skeletons/PageSkeletons';
 
 type Task = {
   id: string;
@@ -14,6 +15,7 @@ type Task = {
 
 export default function Homework() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [estimatingId, setEstimatingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -22,17 +24,23 @@ export default function Homework() {
 
   const fetchTasks = async () => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const res = await fetch('/api/homework', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
+        const raw = await res.json();
+        const data = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
         setTasks(data);
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsLoading(false);
     }
   };
 

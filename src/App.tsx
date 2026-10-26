@@ -5,6 +5,7 @@ import { AuthProvider } from './lib/AuthContext';
 import { ThemeProvider } from './components/ThemeProvider';
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import { RootSkeletonLoader } from './components/skeletons/PageSkeletons';
 
 // Code-splitting routes for better performance (LCP/Initial Load)
 const Login = React.lazy(() => import('./pages/Login'));
@@ -51,7 +52,7 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <ScrollToTop />
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<RootSkeletonLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/onboarding" element={<Onboarding />} />

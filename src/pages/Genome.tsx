@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dna, Network, BrainCircuit, Activity, Search, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { GenomeSkeleton } from '../components/skeletons/PageSkeletons';
 
 interface ConceptGene {
   id: string;
@@ -19,23 +20,30 @@ interface ConceptGene {
 
 export default function Genome() {
   const [genome, setGenome] = useState<ConceptGene[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedGene, setSelectedGene] = useState<ConceptGene | null>(null);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     const fetchGenome = async () => {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
       try {
         const res = await fetch('/api/dna', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
-          const data = await res.json();
+          const raw = await res.json();
+          const data = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
           setGenome(data);
         }
       } catch (e) {
         console.error(e);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchGenome();
@@ -51,7 +59,7 @@ export default function Genome() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        setGenome(prev => prev.filter(g => g.id !== id));
+        setGenome(prev => (Array.isArray(prev) ? prev.filter(g => g.id !== id) : []));
         if (selectedGene?.id === id) {
           setSelectedGene(null);
         }
@@ -61,7 +69,8 @@ export default function Genome() {
     }
   };
 
-  const filteredGenome = genome.filter(g => g.concept_name.toLowerCase().includes(search.toLowerCase()));
+  const safeGenome = Array.isArray(genome) ? genome : [];
+  const filteredGenome = safeGenome.filter(g => (g?.concept_name || '').toLowerCase().includes(search.toLowerCase()));
 
   const GeneBar = ({ label, value, colorClass }: { label: string, value: number, colorClass: string }) => (
     <div className="mb-2">
@@ -74,6 +83,10 @@ export default function Genome() {
       </div>
     </div>
   );
+
+  if (isLoading) {
+    return <GenomeSkeleton />;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-[1400px] mx-auto w-full h-[calc(100vh-4rem)] flex flex-col">

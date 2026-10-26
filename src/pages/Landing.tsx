@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/AuthContext';
 import { Helmet } from 'react-helmet-async';
 
 const FadeInUp = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => {
@@ -37,6 +38,8 @@ const FadeInUp = ({ children, delay = 0 }: { children: React.ReactNode; delay?: 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, token } = useAuth();
+  const isAuthenticated = Boolean(user && token);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -85,9 +88,15 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:block">
-          <Link to="/login" className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors inline-block">
-            Get started
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/app" className="bg-white hover:bg-gray-100 text-black text-sm font-semibold px-5 py-2.5 rounded-full transition-colors inline-block shadow-md">
+              Dashboard →
+            </Link>
+          ) : (
+            <Link to="/login" className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors inline-block">
+              Get started
+            </Link>
+          )}
         </div>
 
         {/* Mobile Hamburger */}
@@ -123,9 +132,15 @@ const Navbar = () => {
               {link.label}
             </button>
           ))}
-          <Link to="/login" className="bg-[#1F1F22] text-white text-sm font-medium px-6 py-3 rounded-full border border-white/5 mt-2 inline-block">
-            Get started
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/app" className="bg-white text-black text-sm font-semibold px-6 py-3 rounded-full mt-2 inline-block shadow-md">
+              Dashboard →
+            </Link>
+          ) : (
+            <Link to="/login" className="bg-[#1F1F22] text-white text-sm font-medium px-6 py-3 rounded-full border border-white/5 mt-2 inline-block">
+              Get started
+            </Link>
+          )}
         </div>
       </div>
     </nav>
@@ -559,6 +574,15 @@ const Footer = () => {
 };
 
 export default function Landing() {
+  const { user, token, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && token && user) {
+      navigate('/app', { replace: true });
+    }
+  }, [loading, token, user, navigate]);
+
   return (
     <div className="bg-black text-white min-h-screen font-sans overflow-x-hidden selection:bg-white/20 selection:text-white">
       <Helmet>

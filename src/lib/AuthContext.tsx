@@ -61,7 +61,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Authorization': `Bearer ${authToken}` }
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to sync user');
+    if (!res.ok) {
+      const error: any = new Error(data.error || 'Failed to sync user');
+      error.status = res.status;
+      throw error;
+    }
     
     setRequires2FA(data.requires2FA);
     if (!data.requires2FA && data.user) {
@@ -91,12 +95,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(authToken);
           localStorage.setItem('token', authToken);
           await syncUser(authToken);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error syncing user:', error);
-          setUser(null);
-          setToken(null);
-          localStorage.removeItem('token');
-          localStorage.removeItem(CACHED_USER_KEY);
+          // Only wipe session if the token was explicitly invalid / unauthorized (401/403)
+          if (error?.status === 401 || error?.status === 403) {
+            setUser(null);
+            setToken(null);
+            localStorage.removeItem('token');
+            localStorage.removeItem(CACHED_USER_KEY);
+          } else {
+            // Keep existing cached session on network hiccups / database cold start
+            try {
+              const cached = localStorage.getItem(CACHED_USER_KEY);
+              if (cached) setUser(JSON.parse(cached));
+            } catch {}
+          }
         }
       } else {
         setUser(null);

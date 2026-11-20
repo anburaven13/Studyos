@@ -49,7 +49,7 @@ export const getDbForContext = () => {
 };
 
 // Create a Proxy that looks and acts like the `neon()` tagged template literal function
-const sqlProxy = new Proxy(() => {}, {
+const sqlProxy: any = new Proxy(() => {}, {
   apply: function (target, thisArg, argumentsList) {
     const db = getDbForContext();
     if (!db) {

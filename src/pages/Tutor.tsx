@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, User, Sparkles, Settings, Paperclip, Loader2, Trash2, LineChart } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Settings, Paperclip, Loader2, Trash2, LineChart, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { openMathGrapher } from '../components/math/InteractiveGrapher';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
-import { simulateAiResponse, extractTextFromDocument } from '../lib/aiService';
+import { simulateAiResponse, extractTextFromDocument, extractTextFromMultipleDocuments } from '../lib/aiService';
 import { cn } from '../lib/utils';
 import { useAuth } from '../lib/AuthContext';
 
@@ -15,6 +15,15 @@ type Message = {
   role: 'user' | 'ai';
   content: string;
   attachmentUrl?: string;
+  attachmentUrls?: string[];
+};
+
+type AttachedMedia = {
+  id: string;
+  file: File;
+  url: string;
+  name: string;
+  type: string;
 };
 
 export default function Tutor() {
@@ -65,7 +74,8 @@ export default function Tutor() {
   }, []);
   const [isTyping, setIsTyping] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<{file: File, url: string} | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedMedia[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -175,63 +185,158 @@ export default function Tutor() {
     return () => clearTimeout(timer);
   }, [messages, token]);
 
+  const addFilesToAttachments = useCallback((files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+
+    const validNewFiles: AttachedMedia[] = [];
+    list.forEach((file, i) => {
+      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+        validNewFiles.push({
+          id: `media-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 8)}`,
+          file,
+          url: URL.createObjectURL(file),
+          name: file.name,
+          type: file.type
+        });
+      }
+    });
+
+    if (validNewFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validNewFiles]);
+    }
+  }, []);
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    const url = URL.createObjectURL(file);
-    setAttachedFile({ file, url });
-    
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    addFilesToAttachments(files);
     if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      fileInputRef.current.value = '';
     }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() && !attachedFile) return;
+  const handlePaste = useCallback((event: React.ClipboardEvent | ClipboardEvent) => {
+    const clipboardData = event.clipboardData;
+    if (!clipboardData) return;
 
-    let userContent = input.trim() || 'Please analyze this document.';
-    let currentAttachedFile = attachedFile;
+    const items = clipboardData.items;
+    const pastedFiles: File[] = [];
+
+    if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            pastedFiles.push(file);
+          }
+        }
+      }
+    }
+
+    if (pastedFiles.length === 0 && clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        const file = clipboardData.files[i];
+        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+          pastedFiles.push(file);
+        }
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      event.preventDefault();
+      addFilesToAttachments(pastedFiles);
+    }
+  }, [addFilesToAttachments]);
+
+  // Window-level paste listener so user can paste screenshot anywhere while viewing the Tutor page
+  useEffect(() => {
+    const windowPasteListener = (e: ClipboardEvent) => {
+      // If user is pasting files/images, intercept it
+      if (e.clipboardData && (e.clipboardData.files.length > 0 || Array.from(e.clipboardData.items).some(i => i.type.startsWith('image/')))) {
+        handlePaste(e);
+      }
+    };
+    window.addEventListener('paste', windowPasteListener);
+    return () => window.removeEventListener('paste', windowPasteListener);
+  }, [handlePaste]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFilesToAttachments(e.dataTransfer.files);
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachedFiles(prev => {
+      const match = prev.find(item => item.id === id);
+      if (match) {
+        URL.revokeObjectURL(match.url);
+      }
+      return prev.filter(item => item.id !== id);
+    });
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() && attachedFiles.length === 0) return;
+
+    const userContent = input.trim() || 'Please analyze the attached image(s) / document(s).';
+    const currentAttachedFiles = [...attachedFiles];
 
     const userMessage: Message = { 
-        id: Date.now().toString(), 
-        role: 'user', 
-        content: userContent,
-        attachmentUrl: currentAttachedFile?.url
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: userContent,
+      attachmentUrl: currentAttachedFiles[0]?.url,
+      attachmentUrls: currentAttachedFiles.map(f => f.url)
     };
     
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInput('');
-    setAttachedFile(null);
+    setAttachedFiles([]);
     setIsTyping(true);
 
     try {
-        let aiMessages = [...newMessages];
-        if (currentAttachedFile) {
-            setIsParsing(true);
-            const extractedText = await extractTextFromDocument(currentAttachedFile.file);
-            aiMessages[aiMessages.length - 1] = {
-                ...userMessage,
-                content: `[Attached File Context from ${currentAttachedFile.file.name}: ${extractedText}]\n\nUser Question: ${userContent}`
-            };
-            setIsParsing(false);
-        }
-
-        const providerInfo = {
-          provider,
-          apiKey: provider === 'nvidia' ? apiKey : undefined,
-          model: provider === 'nvidia' ? 'nvidia/nemotron-3-ultra-550b-a55b' : model
+      const aiMessages = [...newMessages];
+      if (currentAttachedFiles.length > 0) {
+        setIsParsing(true);
+        const extractedText = await extractTextFromMultipleDocuments(currentAttachedFiles.map(f => f.file));
+        const fileNames = currentAttachedFiles.map(f => f.name).join(', ');
+        aiMessages[aiMessages.length - 1] = {
+          ...userMessage,
+          content: `[Attached Context from ${fileNames}:\n${extractedText}]\n\nUser Question: ${userContent}`
         };
-
-        const aiResponseContent = await simulateAiResponse(aiMessages, undefined, userContext, providerInfo);
-        const aiMessage: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: aiResponseContent };
-        
-        setMessages(prev => [...prev, aiMessage]);
-    } catch (err) {
-        console.error('Send Error:', err);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ai', content: "Sorry, I encountered an error while processing that." }]);
         setIsParsing(false);
+      }
+
+      const providerInfo = {
+        provider,
+        apiKey: provider === 'nvidia' ? apiKey : undefined,
+        model: provider === 'nvidia' ? 'nvidia/nemotron-3-ultra-550b-a55b' : model
+      };
+
+      const aiResponseContent = await simulateAiResponse(aiMessages, undefined, userContext, providerInfo);
+      const aiMessage: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: aiResponseContent };
+      
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (err) {
+      console.error('Send Error:', err);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ai', content: "Sorry, I encountered an error while processing that." }]);
+      setIsParsing(false);
     }
     setIsTyping(false);
   };
@@ -353,7 +458,23 @@ export default function Tutor() {
         </div>
       )}
 
-      <div className="flex-1 border rounded-2xl bg-card shadow-sm flex flex-col overflow-hidden">
+      <div 
+        className={cn(
+          "flex-1 border rounded-2xl bg-card shadow-sm flex flex-col overflow-hidden relative transition-all",
+          isDragging && "ring-2 ring-primary ring-offset-2 bg-primary/5"
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center border-2 border-dashed border-primary rounded-2xl pointer-events-none">
+            <Paperclip className="w-10 h-10 text-primary animate-bounce mb-2" />
+            <p className="text-base font-semibold text-foreground">Drop images or PDFs here</p>
+            <p className="text-xs text-muted-foreground">They will be attached to your question</p>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {messages.map((msg) => (
             <div key={msg.id} className={cn("flex space-x-4", msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : '')}>
@@ -363,9 +484,29 @@ export default function Tutor() {
               <div className={cn("max-w-[80%] rounded-xl p-4 text-sm leading-relaxed", msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 border')}>
                 {msg.role === 'user' ? (
                   <div className="flex flex-col gap-2">
-                    {msg.attachmentUrl && (
-                        <img src={msg.attachmentUrl} alt="User attachment" className="max-w-[200px] rounded-lg border border-primary/20 object-contain" />
-                    )}
+                    {msg.attachmentUrls && msg.attachmentUrls.length > 0 ? (
+                      <div className={cn(
+                        "grid gap-2 mb-1",
+                        msg.attachmentUrls.length === 1 ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"
+                      )}>
+                        {msg.attachmentUrls.map((url, idx) => (
+                          <a 
+                            key={idx} 
+                            href={url} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="block overflow-hidden rounded-lg border border-primary/20 hover:opacity-90 transition-opacity bg-black/10"
+                            title="Click to view full image"
+                          >
+                            <img src={url} alt={`Attachment ${idx + 1}`} className="max-h-48 w-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    ) : msg.attachmentUrl ? (
+                      <a href={msg.attachmentUrl} target="_blank" rel="noreferrer" className="block max-w-[220px] rounded-lg overflow-hidden border border-primary/20">
+                        <img src={msg.attachmentUrl} alt="User attachment" className="max-h-48 w-full object-contain" />
+                      </a>
+                    ) : null}
                     <span>{msg.content}</span>
                   </div>
                 ) : (
@@ -390,55 +531,84 @@ export default function Tutor() {
           )}
           <div ref={endOfMessagesRef} />
         </div>
-        <div className="p-4 border-t bg-background flex flex-col gap-4">
-          {attachedFile && (
-            <div className="relative inline-block self-start">
-                {attachedFile.file.type.startsWith('image/') ? (
-                    <img src={attachedFile.url} alt="Attachment" className="h-20 w-20 object-cover rounded-lg border" />
-                ) : (
-                    <div className="h-20 w-20 flex items-center justify-center bg-muted rounded-lg border text-xs text-center p-2 break-all">
-                        {attachedFile.file.name}
-                    </div>
-                )}
-                <button 
-                    onClick={() => setAttachedFile(null)}
-                    className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 shadow-sm transition-colors"
-                    title="Remove Attachment"
+        <div className="p-4 border-t bg-background flex flex-col gap-3">
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2.5 pb-1">
+              {attachedFiles.map((att) => (
+                <div 
+                  key={att.id} 
+                  className="relative group rounded-xl overflow-hidden border border-border bg-muted/40 shadow-sm flex items-center p-1.5 gap-2 pr-7 max-w-[220px]"
                 >
-                    <Trash2 className="w-3 h-3" />
+                  {att.type.startsWith('image/') ? (
+                    <img src={att.url} alt={att.name} className="h-11 w-11 object-cover rounded-lg border border-border/50 shrink-0" />
+                  ) : (
+                    <div className="h-11 w-11 flex flex-col items-center justify-center bg-primary/10 text-primary rounded-lg text-[10px] font-bold uppercase shrink-0">
+                      <FileText className="w-4 h-4 mb-0.5" />
+                      PDF
+                    </div>
+                  )}
+                  <div className="flex flex-col text-xs min-w-0">
+                    <span className="font-medium truncate text-foreground text-[11px]">{att.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{(att.file.size / 1024).toFixed(0)} KB</span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => removeAttachment(att.id)}
+                    className="absolute top-1 right-1 bg-destructive/80 hover:bg-destructive text-destructive-foreground rounded-full p-1 shadow-sm transition-colors"
+                    title="Remove attachment"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              {attachedFiles.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setAttachedFiles([])}
+                  className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded transition-colors"
+                >
+                  Clear all ({attachedFiles.length})
                 </button>
+              )}
             </div>
           )}
-          <div className="flex flex-row items-stretch sm:items-center gap-4 w-full">
+          <div className="flex flex-row items-stretch sm:items-center gap-3 w-full">
             <input 
               type="file"
               accept="image/*,application/pdf"
+              multiple
               className="hidden"
               ref={fileInputRef}
               onChange={handleFileUpload}
             />
             <button 
+              type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-3 bg-muted hover:bg-muted-foreground/10 text-muted-foreground rounded-xl transition-colors flex-shrink-0 flex items-center justify-center"
-              title="Upload Image or PDF"
+              className="p-3 bg-muted hover:bg-muted-foreground/10 text-muted-foreground hover:text-foreground rounded-xl transition-colors flex-shrink-0 flex items-center justify-center"
+              title="Upload Images or PDFs (Multiple supported)"
               disabled={isParsing}
             >
-              {isParsing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
+              {isParsing ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <Paperclip className="w-5 h-5" />}
             </button>
-            <input 
-              type="text"
-              className="flex-1 bg-muted/50 border border-transparent focus:border-border rounded-xl px-4 py-3 outline-none text-sm transition-colors"
-              placeholder="Ask a question..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            />
+            <div className="flex-1 relative">
+              <input 
+                type="text"
+                className="w-full bg-muted/50 border border-transparent focus:border-border rounded-xl px-4 py-3 outline-none text-sm transition-colors placeholder:text-muted-foreground/70"
+                placeholder={attachedFiles.length > 0 ? "Ask about attached file(s) or paste more images (Ctrl+V)..." : "Ask a question or paste images (Ctrl+V)..."}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onPaste={handlePaste}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              />
+            </div>
             <button 
+              type="button"
               onClick={handleSend}
-              disabled={(!input.trim() && !attachedFile) || isTyping || isParsing}
-              className="w-12 h-12 flex-shrink-0 bg-primary text-primary-foreground rounded-xl flex items-center justify-center disabled:opacity-50 hover:opacity-90 transition-opacity"
+              disabled={(!input.trim() && attachedFiles.length === 0) || isTyping || isParsing}
+              className="w-12 h-12 flex-shrink-0 bg-primary text-primary-foreground rounded-xl flex items-center justify-center disabled:opacity-50 hover:opacity-90 transition-opacity shadow-sm"
+              title="Send message"
             >
-              <Send className="w-5 h-5 ml-1" />
+              <Send className="w-5 h-5 ml-0.5" />
             </button>
           </div>
         </div>

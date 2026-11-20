@@ -1938,7 +1938,11 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
       const currentDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const currentDateStr = now.toISOString().split('T')[0];
       const currentDayName = currentDays[now.getDay()];
-      baseSystemPrompt = `${IMMUTABLE_GUARDRAIL}\n\nYou are a highly capable, versatile AI academic assistant and tutor. Today is ${currentDayName}, ${currentDateStr}. You can explain concepts, solve homework problems, test knowledge, and organize schedules. You have direct database tools to view and update the user's weekly routine schedule, exams, homework, planner events, study sessions, and notes. When scheduling a one-off class or tuition for a specific day (e.g. "tuition this Friday"), calculate the exact YYYY-MM-DD date and call 'create_planner_event' with name, start_time, end_time, date, and is_recurring: false. When the user asks you to split, rebalance, adjust, or edit their routine/timetable, ALWAYS use 'get_routine' to read their active routine and 'update_routine' to save the split/edited blocks directly into their database so the changes show immediately on the website. Always format responses cleanly with standard Markdown and LaTeX ($...$ or $$...$$). Do not output raw HTML tags like <br> or <p>; use Markdown newlines and paragraph breaks instead.`;
+      baseSystemPrompt = `${IMMUTABLE_GUARDRAIL}\n\nYou are a highly capable, versatile AI academic assistant and tutor. Today is ${currentDayName}, ${currentDateStr}. You can explain concepts, solve homework problems, test knowledge, and organize schedules. You have direct database tools to view, add, update, and DELETE/REMOVE items from the user's weekly routine schedule, exams, homework, planner events, study sessions, and notes.
+When scheduling a one-off class or tuition for a specific day (e.g. "tuition this Friday"), calculate the exact YYYY-MM-DD date and call 'create_planner_event' with name, start_time, end_time, date, and is_recurring: false.
+When the user asks you to remove, delete, or cancel a one-off event, class, or tuition from their planner (e.g. "remove tuition this Friday", "cancel my physics class", "delete the event from my planner"), use 'get_planner_events' or call 'delete_planner_event' directly with the event name and/or date to delete it from the database immediately.
+When the user asks you to split, rebalance, adjust, or edit their routine/timetable, ALWAYS use 'get_routine' to read their active routine and 'update_routine' to save the split/edited blocks directly into their database so the changes show immediately on the website.
+Always format responses cleanly with standard Markdown and LaTeX ($...$ or $$...$$). Do not output raw HTML tags like <br> or <p>; use Markdown newlines and paragraph breaks instead.`;
     }
 
     const fullSystemPrompt = userContext 
@@ -2091,10 +2095,24 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
         },
         {
           name: "get_planner_events",
-          description: "Gets the user's upcoming planner events",
+          description: "Gets the user's upcoming planner events (both one-off and recurring classes/tuition)",
           parameters: {
             type: "OBJECT",
-            properties: {}
+            properties: {
+              date: { type: "STRING", description: "Optional date in YYYY-MM-DD format to filter events for a specific day" }
+            }
+          }
+        },
+        {
+          name: "delete_planner_event",
+          description: "Deletes, cancels, or removes an event or one-off class/tuition from the user's planner/schedule. Provide either the event_id (if known) or the event name and optional date.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              event_id: { type: "NUMBER", description: "The numeric ID of the planner event to delete (obtained from get_planner_events)." },
+              name: { type: "STRING", description: "The name or title of the event to delete (e.g. 'Math Tuition', 'Physics Class')." },
+              date: { type: "STRING", description: "Optional date in YYYY-MM-DD format of the one-off event to delete." }
+            }
           }
         },
         {
@@ -2246,10 +2264,85 @@ app.post('/api/ai/chat', authenticateToken, aiLimiter, async (req: any, res: any
               functionResponse: { name: toolCall.name, response: { homework: hw } }
             });
           } else if (toolCall.name === 'get_planner_events') {
-            const events = await sql`SELECT id, name, start_time, end_time FROM planner_events WHERE user_id = ${req.user.userId} ORDER BY start_time ASC LIMIT 10`;
+            const filterDate = args.date && /^\d{4}-\d{2}-\d{2}$/.test(args.date) ? args.date : null;
+            let events;
+            if (filterDate) {
+              events = await sql`
+                SELECT id, name, start_time, end_time, date, is_recurring, source 
+                FROM planner_events 
+                WHERE user_id = ${req.user.userId} 
+                  AND (date = ${filterDate} OR is_recurring = true OR date IS NULL)
+                ORDER BY start_time ASC LIMIT 20
+              `;
+            } else {
+              events = await sql`
+                SELECT id, name, start_time, end_time, date, is_recurring, source 
+                FROM planner_events 
+                WHERE user_id = ${req.user.userId} 
+                ORDER BY (CASE WHEN date IS NOT NULL THEN date ELSE '9999-12-31' END) ASC, start_time ASC 
+                LIMIT 20
+              `;
+            }
             functionResponses.push({
               functionResponse: { name: toolCall.name, response: { events: events } }
             });
+          } else if (toolCall.name === 'delete_planner_event') {
+            let deletedRows: any[] = [];
+            if (args.event_id) {
+              deletedRows = await sql`
+                DELETE FROM planner_events 
+                WHERE id = ${args.event_id as number} AND user_id = ${req.user.userId}
+                RETURNING id, name, date, start_time, end_time
+              `;
+            } else if (args.name) {
+              const searchPattern = `%${(args.name as string).trim()}%`;
+              if (args.date) {
+                deletedRows = await sql`
+                  DELETE FROM planner_events 
+                  WHERE user_id = ${req.user.userId} 
+                    AND name ILIKE ${searchPattern}
+                    AND (date = ${args.date as string} OR date IS NULL)
+                  RETURNING id, name, date, start_time, end_time
+                `;
+              } else {
+                deletedRows = await sql`
+                  DELETE FROM planner_events 
+                  WHERE user_id = ${req.user.userId} 
+                    AND name ILIKE ${searchPattern}
+                  RETURNING id, name, date, start_time, end_time
+                `;
+              }
+            }
+
+            if (deletedRows.length > 0) {
+              const details = deletedRows.map((r: any) => `'${r.name}'${r.date ? ` on ${r.date}` : ''} (${r.start_time}-${r.end_time})`).join(', ');
+              functionResponses.push({
+                functionResponse: { 
+                  name: toolCall.name, 
+                  response: { 
+                    success: true, 
+                    message: `Successfully removed ${deletedRows.length} event(s) from your planner: ${details}.` 
+                  } 
+                }
+              });
+            } else {
+              const existing = await sql`
+                SELECT id, name, start_time, end_time, date, is_recurring 
+                FROM planner_events 
+                WHERE user_id = ${req.user.userId} 
+                LIMIT 10
+              `;
+              functionResponses.push({
+                functionResponse: { 
+                  name: toolCall.name, 
+                  response: { 
+                    success: false, 
+                    message: `Could not find an event matching '${args.name || args.event_id}' to delete.`,
+                    existing_events: existing
+                  } 
+                }
+              });
+            }
           } else if (toolCall.name === 'get_recent_notes') {
             const notes = await sql`SELECT id, title, folder, created_at FROM notes WHERE user_id = ${req.user.userId} ORDER BY created_at DESC LIMIT 5`;
             functionResponses.push({

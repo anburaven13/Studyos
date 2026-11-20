@@ -369,8 +369,7 @@ export default function Messages() {
   };
 
   // Media File Upload
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const uploadSingleFile = async (file: File) => {
     if (!file || !activeFriend) return;
     
     setUploadProgress(0);
@@ -414,6 +413,28 @@ export default function Messages() {
     } finally {
       setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadSingleFile(file);
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData || !clipboardData.items) return;
+
+    for (let i = 0; i < clipboardData.items.length; i++) {
+      const item = clipboardData.items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          await uploadSingleFile(file);
+          break;
+        }
+      }
     }
   };
 
@@ -915,7 +936,8 @@ export default function Messages() {
                   <input 
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
+                    onPaste={handlePaste}
+                    placeholder="Type a message or paste image (Ctrl+V)..."
                     className="w-full bg-background border border-input rounded-2xl py-3 px-4 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   />
                 </div>

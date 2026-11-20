@@ -179,6 +179,61 @@ export const extractTextFromDocument = async (file: File): Promise<string> => {
   }
 };
 
+export const extractTextFromMultipleDocuments = async (files: File[]): Promise<string> => {
+  if (!files || files.length === 0) return '';
+  if (files.length === 1) return extractTextFromDocument(files[0]);
+
+  try {
+    const currentUser = auth.currentUser;
+    const token = currentUser ? await currentUser.getIdToken() : localStorage.getItem('token');
+    
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    const pdfFiles = files.filter(f => f.type === 'application/pdf');
+
+    const combinedParts: string[] = [];
+
+    // If there are images, compress in parallel and send in one batch to Gemini Vision
+    if (imageFiles.length > 0) {
+      const imagesBatch = await Promise.all(
+        imageFiles.map(async (file) => {
+          const base64Data = await compressImageForOcr(file);
+          return { base64Data, mimeType: file.type || 'image/jpeg' };
+        })
+      );
+
+      const response = await fetch('/api/ai/gemini-vision', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ images: imagesBatch })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process image batch');
+      }
+      const data = await response.json();
+      if (data.result) {
+        combinedParts.push(`[Content from ${imageFiles.length} attached image(s) (${imageFiles.map(f => f.name).join(', ')}):\n${data.result}]`);
+      }
+    }
+
+    // Process any PDF documents
+    for (const pdf of pdfFiles) {
+      const pdfText = await extractTextFromDocument(pdf);
+      if (pdfText) {
+        combinedParts.push(`[Content from ${pdf.name}:\n${pdfText}]`);
+      }
+    }
+
+    return combinedParts.join('\n\n');
+  } catch (error: any) {
+    console.error('Multiple Document Extraction Error:', error);
+    throw new Error(`Failed to read documents: ${error.message}`);
+  }
+};
+
 export const generateFlashcards = async (content: string, userContext?: string): Promise<{front: string, back: string}[]> => {
   try {
     const currentUser = auth.currentUser;
